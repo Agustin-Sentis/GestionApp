@@ -1,0 +1,63 @@
+version: 2
+
+# Weekly pull requests that update dependencies. Each one runs the CI, so an update that breaks something shows it before it is merged.
+# Updates are grouped to keep the number of pull requests low.
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /gastos/frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # Minor and patch updates together; a major version (React, TypeScript, Vite...) gets its own pull request to review
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: nuget
+    # One entry per project folder (the solution file is .slnx, which Dependabot may not read)
+    directories:
+      - /gastos/src/*
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # These packages must stay on the same version: the app already had a build warning from EF Core 10.0.0 and 10.0.9 mixed.
+      # Updating them together keeps them aligned.
+      microsoft-and-ef:
+        patterns:
+          - "Microsoft.EntityFrameworkCore*"
+          - "Npgsql.EntityFrameworkCore*"
+          - "Microsoft.AspNetCore*"
+          - "Microsoft.Extensions*"
+          - "Microsoft.IdentityModel*"
+          - "System.IdentityModel*"
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # The next major version of these is the next .NET (11): moving to it is a project decision, not a weekly update
+      - dependency-name: "Microsoft.EntityFrameworkCore*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.AspNetCore*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.Extensions*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: docker
+    directories:
+      - /gastos/src/GastosBackend
+      - /gastos/frontend
+    schedule:
+      interval: weekly
+      day: monday

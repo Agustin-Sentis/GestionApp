@@ -1,0 +1,144 @@
+name: CI
+
+# The repository root is "GestionApp"; the application lives in the "gastos" folder.
+# GitHub only runs workflows found in <repository root>/.github/workflows, which is why this file is here
+# and every command runs from "gastos".
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: # lets you run it by hand from the Actions tab
+
+# The workflow only reads the code. Without this, the token gets the repository's default permissions, which can include writing.
+permissions:
+  contents: read
+
+# A new push to the same pull request makes the previous run pointless: cancel it. On main every run is kept,
+# so a broken commit is never hidden by the one after it.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+defaults:
+  run:
+    working-directory: gastos
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          # The SDK version comes from gastos/global.json, so CI and every developer build with the same one
+          global-json-file: gastos/global.json
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('gastos/src/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - run: dotnet restore src/GastosBackend.slnx
+      - run: dotnet build src/GastosBackend.slnx --configuration Release --no-restore
+      # Fast tests (mocks, no Docker). The ones that need a real database run in the "integration" job.
+      - run: >
+          dotnet test src/GastosBackend.Tests --configuration Release --no-build
+          --logger "trx;LogFileName=unit.trx" --results-directory TestResults
+      # The detail of a failure (which test, with what message) is in this file, not only in the log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-test-results
+          path: gastos/TestResults
+          if-no-files-found: ignore
+          retention-days: 7
+
+  integration:
+    # Tests against a real PostgreSQL that Testcontainers starts in Docker (available on ubuntu-latest).
+    # Kept as its own job so a database problem is easy to tell apart from a unit test failure.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: gastos/global.json
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('gastos/src/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - run: dotnet restore src/GastosBackend.IntegrationTests
+      - run: dotnet build src/GastosBackend.IntegrationTests --configuration Release --no-restore
+      - run: >
+          dotnet test src/GastosBackend.IntegrationTests --configuration Release --no-build
+          --logger "trx;LogFileName=integration.trx" --results-directory TestResults
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-results
+          path: gastos/TestResults
+          if-no-files-found: ignore
+          retention-days: 7
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: gastos/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: gastos/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  docker:
+    # Builds the two images the way the deploy does, without publishing them. A change that breaks a Dockerfile
+    # (a moved folder, a missing file) shows up here and not when Render or the compose file try to build it.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: API image
+        uses: docker/build-push-action@v6
+        with:
+          context: gastos/src
+          file: gastos/src/GastosBackend/Dockerfile
+          push: false
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+      - name: Web image
+        uses: docker/build-push-action@v6
+        with:
+          context: gastos/frontend
+          push: false
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+  # One name for the whole pipeline. In the repository's branch rules, require THIS check instead of listing every job:
+  # adding or renaming a job above then needs no change there.
+  ci-ok:
+    if: always()
+    needs: [backend, integration, frontend, docker]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job passed
+        working-directory: ${{ github.workspace }}
+        run: |
+          if [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "true" ]; then
+            echo "At least one job failed or was cancelled."
+            exit 1
+          fi
