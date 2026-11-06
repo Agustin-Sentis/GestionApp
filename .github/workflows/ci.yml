@@ -33,12 +33,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           # The SDK version comes from gastos/global.json, so CI and every developer build with the same one
           global-json-file: gastos/global.json
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('gastos/src/**/*.csproj') }}
@@ -50,7 +50,7 @@ jobs:
           dotnet test src/GastosBackend.Tests --configuration Release --no-build
           --logger "trx;LogFileName=unit.trx" --results-directory TestResults
       # The detail of a failure (which test, with what message) is in this file, not only in the log
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: backend-test-results
@@ -64,11 +64,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: gastos/global.json
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('gastos/src/**/*.csproj') }}
@@ -78,7 +78,7 @@ jobs:
       - run: >
           dotnet test src/GastosBackend.IntegrationTests --configuration Release --no-build
           --logger "trx;LogFileName=integration.trx" --results-directory TestResults
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: integration-test-results
@@ -93,8 +93,8 @@ jobs:
       run:
         working-directory: gastos/frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -110,10 +110,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
       - name: API image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: gastos/src
           file: gastos/src/GastosBackend/Dockerfile
@@ -121,7 +121,7 @@ jobs:
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
       - name: Web image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: gastos/frontend
           push: false
