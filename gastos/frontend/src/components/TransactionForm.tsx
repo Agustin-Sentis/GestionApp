@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, EXPENSE, INCOME } from '../api.ts'
 import type { Currency, Transaction, TransactionInput } from '../api.ts'
+import { DOLLAR_NAMES } from '../dollar.ts'
 import { defaultDateForMonth, formatMonth } from '../format.ts'
 import { useListFilters } from '../useListFilters.ts'
 import { useToast } from './toastContext.ts'
@@ -25,6 +26,9 @@ export default function TransactionForm({ editing = null, onFinishEditing }: Pro
     queryKey: ['categories'],
     queryFn: api.categories.list,
   })
+  // The dollar a USD movement is saved with. Until it arrives (or if it fails) the notes say "the one you have chosen"
+  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.settings.get })
+  const chosenDollar = settings?.dollarType
 
   const [amount, setAmount] = useState(editing ? String(editing.amount) : '')
   const [currency, setCurrency] = useState<Currency>(editing?.currency ?? 'ARS')
@@ -170,9 +174,18 @@ export default function TransactionForm({ editing = null, onFinishEditing }: Pro
         <input className="input" type="text" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} />
       </label>
 
-      {editing?.currency === 'USD' && currency === 'USD' && (
+      {/* Which rate this movement ends up with: the one chosen when it is saved, and it stays that way */}
+      {currency === 'USD' && editing?.currency === 'USD' && (
         <p className="muted text-sm">
-          La cotización se guardó al cargar el movimiento. Si cambiás el monto o la fecha, se toma la de hoy.
+          Este movimiento se guardó con la cotización {DOLLAR_NAMES[editing.dollarType]} del día en que se cargó. Si cambiás el
+          monto o la fecha, se guarda de nuevo con {chosenDollar ? `la ${DOLLAR_NAMES[chosenDollar]}` : 'la que tengas elegida'},
+          la de hoy.
+        </p>
+      )}
+      {currency === 'USD' && editing?.currency !== 'USD' && (
+        <p className="muted text-sm">
+          Se va a guardar con la cotización {chosenDollar ? DOLLAR_NAMES[chosenDollar] : 'que tengas elegida'} de hoy, y queda
+          así aunque después elijas otro dólar.
         </p>
       )}
 

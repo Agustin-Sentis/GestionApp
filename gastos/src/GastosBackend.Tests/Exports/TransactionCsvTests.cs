@@ -7,7 +7,7 @@ namespace GastosBackend.Tests.Exports;
 
 public class TransactionCsvTests
 {
-    private const string HeaderLine = "Fecha;Tipo;Categoría;Nota;Monto;Moneda;Cotización;Monto en ARS";
+    private const string HeaderLine = "Fecha;Tipo;Categoría;Nota;Monto;Moneda;Dólar;Cotización;Monto en ARS";
 
     private static TransactionResponse Row(Action<TransactionResponse>? change = null)
     {
@@ -49,16 +49,61 @@ public class TransactionCsvTests
         Assert.Equal(new[] { HeaderLine, "" }, lines); // the header line, ended by its line break
     }
 
+    [Theory]
+    [InlineData(DollarType.Official, "oficial")]
+    [InlineData(DollarType.Blue, "blue")]
+    [InlineData(DollarType.Mep, "MEP")]
+    public void SaysInEachUsdRowWhichDollarItsRateBelongsTo(DollarType type, string name)
+    {
+        var lines = Lines(Row(r =>
+        {
+            r.Currency = Currency.USD;
+            r.DollarType = type;
+            r.ExchangeRate = 1500m;
+            r.ArsAmount = 15000m;
+        }));
+
+        Assert.Equal($"2026-11-05;Gasto;Comida;almuerzo;1500,00;USD;{name};1500,00;15000,00", lines[1]);
+    }
+
+    [Fact]
+    public void CanMixDollarsInOneFile_BecauseEachTransactionKeepsItsOwn()
+    {
+        var lines = Lines(
+            Row(r => { r.Currency = Currency.USD; r.DollarType = DollarType.Blue; r.ExchangeRate = 1555m; r.ArsAmount = 1m; }),
+            Row(r => { r.Currency = Currency.USD; r.DollarType = DollarType.Official; r.ExchangeRate = 1570m; r.ArsAmount = 2m; }),
+            Row(r => { r.Currency = Currency.USD; r.DollarType = DollarType.Mep; r.ExchangeRate = 1582.2m; r.ArsAmount = 3m; }));
+
+        Assert.Contains(";USD;blue;1555,00;", lines[1]);
+        Assert.Contains(";USD;oficial;1570,00;", lines[2]);
+        Assert.Contains(";USD;MEP;1582,20;", lines[3]);
+    }
+
+    [Fact]
+    public void LeavesTheDollarEmptyOnARowInPesos_EvenIfItCarriesOne()
+    {
+        var lines = Lines(Row(r => r.DollarType = DollarType.Blue)); // a peso transaction has no dollar to name
+
+        Assert.Equal("2026-11-05;Gasto;Comida;almuerzo;1500,00;ARS;;;1500,00", lines[1]);
+    }
+
+    [Fact]
+    public void HasTheSameHeader_WhateverTheRows()
+    {
+        Assert.Equal(HeaderLine, Lines()[0]);
+        Assert.Equal(HeaderLine, Lines(Row(r => r.DollarType = DollarType.Mep))[0]);
+    }
+
     [Fact]
     public void WritesAnArsExpenseOnOneLine()
     {
         var lines = Lines(Row());
 
-        Assert.Equal("2026-11-05;Gasto;Comida;almuerzo;1500,00;ARS;;1500,00", lines[1]);
+        Assert.Equal("2026-11-05;Gasto;Comida;almuerzo;1500,00;ARS;;;1500,00", lines[1]);
     }
 
     [Fact]
-    public void WritesAnIncomeLabel_AndTheRateAndPesoAmountOfAUsdRow()
+    public void WritesAnIncomeLabel_AndTheDollarRateAndPesoAmountOfAUsdRow()
     {
         var lines = Lines(Row(r =>
         {
@@ -69,20 +114,21 @@ public class TransactionCsvTests
             r.ArsAmount = 16487.625m;
         }));
 
-        Assert.Equal("2026-11-05;Ingreso;Comida;almuerzo;10,50;USD;1570,25;16487,63", lines[1]);
+        Assert.Equal("2026-11-05;Ingreso;Comida;almuerzo;10,50;USD;oficial;1570,25;16487,63", lines[1]);
     }
 
     [Fact]
-    public void LeavesTheRateAndPesoAmountEmpty_WhenAUsdRowHasNoRateYet()
+    public void LeavesTheRateAndPesoAmountEmpty_ButStillNamesTheDollar_WhenAUsdRowHasNoRateYet()
     {
         var lines = Lines(Row(r =>
         {
             r.Currency = Currency.USD;
+            r.DollarType = DollarType.Blue;
             r.ExchangeRate = null;
             r.ArsAmount = null;
         }));
 
-        Assert.EndsWith(";USD;;", lines[1]);
+        Assert.EndsWith(";USD;blue;;", lines[1]); // which rate is missing is still worth knowing
     }
 
     [Fact]
@@ -108,7 +154,7 @@ public class TransactionCsvTests
     {
         var lines = Lines(Row(r => r.Note = "pan; leche y \"vino\""));
 
-        Assert.Equal("2026-11-05;Gasto;Comida;\"pan; leche y \"\"vino\"\"\";1500,00;ARS;;1500,00", lines[1]);
+        Assert.Equal("2026-11-05;Gasto;Comida;\"pan; leche y \"\"vino\"\"\";1500,00;ARS;;;1500,00", lines[1]);
     }
 
     [Fact]
@@ -138,7 +184,7 @@ public class TransactionCsvTests
     {
         var lines = Lines(Row(r => r.Note = null));
 
-        Assert.Equal("2026-11-05;Gasto;Comida;;1500,00;ARS;;1500,00", lines[1]);
+        Assert.Equal("2026-11-05;Gasto;Comida;;1500,00;ARS;;;1500,00", lines[1]);
     }
 
     [Fact]

@@ -13,20 +13,29 @@ public class TransactionServiceTests
     private readonly Mock<ITransactionRepository> _transactionRepositoryMock;
     private readonly Mock<ICategoryRepository> _categoryRepositoryMock;
     private readonly Mock<IDolarApiService> _dolarApiServiceMock;
+    private readonly Mock<IUserRepository> _userRepositoryMock;
     private readonly TransactionService _transactionService;
     private readonly Guid _userId = Guid.NewGuid();
     private readonly Category _category;
+
+    /// <summary>The user of the tests. Change its DollarType to test the other dollars.</summary>
+    private readonly User _user;
 
     public TransactionServiceTests()
     {
         _transactionRepositoryMock = new Mock<ITransactionRepository>();
         _categoryRepositoryMock = new Mock<ICategoryRepository>();
         _dolarApiServiceMock = new Mock<IDolarApiService>();
+        _userRepositoryMock = new Mock<IUserRepository>();
         _transactionService = new TransactionService(
-            _transactionRepositoryMock.Object, _categoryRepositoryMock.Object, _dolarApiServiceMock.Object);
+            _transactionRepositoryMock.Object, _categoryRepositoryMock.Object, _dolarApiServiceMock.Object,
+            _userRepositoryMock.Object);
 
         _category = new Category { Id = Guid.NewGuid(), Name = "Comida", Type = TransactionType.Expense, UserId = _userId };
         _categoryRepositoryMock.Setup(r => r.Get(_category.Id)).ReturnsAsync(_category);
+
+        _user = new User { Id = _userId, DollarType = DollarType.Official };
+        _userRepositoryMock.Setup(r => r.Get(_userId)).ReturnsAsync(_user);
     }
 
     private TransactionRequest ValidRequest() => new TransactionRequest
@@ -308,24 +317,61 @@ public class TransactionServiceTests
     }
 
     [Fact]
-    public async Task Create_StoresTheCurrentRate_WhenCurrencyIsUsd()
+    public async Task Create_StoresTheThreeCurrentRates_WhenCurrencyIsUsd()
     {
-        _dolarApiServiceMock.Setup(s => s.GetUsdSellRate()).ReturnsAsync(1200m);
+        _dolarApiServiceMock.Setup(s => s.GetUsdSellRates()).ReturnsAsync(new UsdRates(1200m, 1100m, 1300m));
         var request = ValidRequest();
         request.Currency = Currency.USD;
         request.Amount = 10;
 
         var result = await _transactionService.Create(request, _userId);
 
+        // The response speaks in the user's dollar (official by default); every rate is stored
         Assert.Equal(1200m, result.ExchangeRate);
         Assert.Equal(12000m, result.ArsAmount);
-        _transactionRepositoryMock.Verify(r => r.Add(It.Is<Transaction>(t => t.ExchangeRate == 1200m)), Times.Once);
+        Assert.Equal(DollarType.Official, result.DollarType);
+        _transactionRepositoryMock.Verify(
+            r => r.Add(It.Is<Transaction>(t => t.ExchangeRate == 1200m && t.BlueExchangeRate == 1100m && t.MepExchangeRate == 1300m)),
+            Times.Once);
+    }
+
+    [Theory]
+    [InlineData(DollarType.Official, 1200, 12000)]
+    [InlineData(DollarType.Blue, 1100, 11000)]
+    [InlineData(DollarType.Mep, 1300, 13000)]
+    public async Task Create_ExpressesTheResponseWithTheDollarTheUserChose(DollarType chosen, double rate, double inPesos)
+    {
+        _user.DollarType = chosen;
+        _dolarApiServiceMock.Setup(s => s.GetUsdSellRates()).ReturnsAsync(new UsdRates(1200m, 1100m, 1300m));
+        var request = ValidRequest();
+        request.Currency = Currency.USD;
+        request.Amount = 10;
+
+        var result = await _transactionService.Create(request, _userId);
+
+        Assert.Equal((decimal)rate, result.ExchangeRate);
+        Assert.Equal((decimal)inPesos, result.ArsAmount);
+        Assert.Equal(chosen, result.DollarType);
+    }
+
+    [Fact]
+    public async Task Create_StoresWhatWasObtained_WhenOnlySomeRatesAreAvailable()
+    {
+        _dolarApiServiceMock.Setup(s => s.GetUsdSellRates()).ReturnsAsync(new UsdRates(1200m, null, 1300m));
+        var request = ValidRequest();
+        request.Currency = Currency.USD;
+
+        await _transactionService.Create(request, _userId);
+
+        _transactionRepositoryMock.Verify(
+            r => r.Add(It.Is<Transaction>(t => t.ExchangeRate == 1200m && t.BlueExchangeRate == null && t.MepExchangeRate == 1300m)),
+            Times.Once);
     }
 
     [Fact]
     public async Task Create_SavesWithoutRate_WhenTheRateProviderFails()
     {
-        _dolarApiServiceMock.Setup(s => s.GetUsdSellRate()).ThrowsAsync(new ExternalServiceException("down"));
+        _dolarApiServiceMock.Setup(s => s.GetUsdSellRates()).ThrowsAsync(new ExternalServiceException("down"));
         var request = ValidRequest();
         request.Currency = Currency.USD;
 
@@ -343,7 +389,7 @@ public class TransactionServiceTests
 
         Assert.Null(result.ExchangeRate);
         Assert.Equal(15000m, result.ArsAmount);
-        _dolarApiServiceMock.Verify(s => s.GetUsdSellRate(), Times.Never);
+        _dolarApiServiceMock.Verify(s => s.GetUsdSellRates(), Times.Never);
     }
 
     private Transaction ExistingUsdTransaction(decimal? rate)
@@ -374,13 +420,13 @@ public class TransactionServiceTests
         await _transactionService.Update(request, existing.Id, _userId);
 
         Assert.Equal(900m, existing.ExchangeRate);
-        _dolarApiServiceMock.Verify(s => s.GetUsdSellRate(), Times.Never);
+        _dolarApiServiceMock.Verify(s => s.GetUsdSellRates(), Times.Never);
     }
 
     [Fact]
     public async Task Update_AsksForANewRate_WhenTheAmountChanges()
     {
-        _dolarApiServiceMock.Setup(s => s.GetUsdSellRate()).ReturnsAsync(1500m);
+        _dolarApiServiceMock.Setup(s => s.GetUsdSellRates()).ReturnsAsync(new UsdRates(1500m, 1400m, 1600m));
         var existing = ExistingUsdTransaction(rate: 900m);
         var request = ValidRequest();
         request.Currency = Currency.USD;
@@ -389,12 +435,30 @@ public class TransactionServiceTests
         await _transactionService.Update(request, existing.Id, _userId);
 
         Assert.Equal(1500m, existing.ExchangeRate);
+        Assert.Equal(1400m, existing.BlueExchangeRate); // all three are refreshed together
+        Assert.Equal(1600m, existing.MepExchangeRate);
+    }
+
+    [Fact]
+    public async Task Update_LeavesTheMissingBlueAndMepRatesEmpty_OfATransactionRecordedBeforeTheyWereStored()
+    {
+        // Only the official rate was stored then. Changing the note must not make up a blue or MEP rate for that day.
+        var existing = ExistingUsdTransaction(rate: 900m);
+        var request = ValidRequest();
+        request.Currency = Currency.USD;
+        request.Note = "only the note changes";
+
+        await _transactionService.Update(request, existing.Id, _userId);
+
+        Assert.Equal(900m, existing.ExchangeRate);
+        Assert.Null(existing.BlueExchangeRate);
+        Assert.Null(existing.MepExchangeRate);
     }
 
     [Fact]
     public async Task Update_RetriesTheRate_WhenTheStoredRateIsMissing()
     {
-        _dolarApiServiceMock.Setup(s => s.GetUsdSellRate()).ReturnsAsync(1500m);
+        _dolarApiServiceMock.Setup(s => s.GetUsdSellRates()).ReturnsAsync(new UsdRates(1500m, 1400m, 1600m));
         var existing = ExistingUsdTransaction(rate: null);
         var request = ValidRequest();
         request.Currency = Currency.USD;
@@ -405,14 +469,245 @@ public class TransactionServiceTests
     }
 
     [Fact]
-    public async Task Update_ClearsTheRate_WhenCurrencyChangesToArs()
+    public async Task Update_ClearsAllTheRates_WhenCurrencyChangesToArs()
     {
         var existing = ExistingUsdTransaction(rate: 900m);
+        existing.BlueExchangeRate = 800m;
+        existing.MepExchangeRate = 950m;
 
         await _transactionService.Update(ValidRequest(), existing.Id, _userId);
 
         Assert.Null(existing.ExchangeRate);
-        _dolarApiServiceMock.Verify(s => s.GetUsdSellRate(), Times.Never);
+        Assert.Null(existing.BlueExchangeRate);
+        Assert.Null(existing.MepExchangeRate);
+        _dolarApiServiceMock.Verify(s => s.GetUsdSellRates(), Times.Never);
+    }
+
+    // ---------- Each transaction keeps the dollar it was saved with ----------
+
+    private static Transaction UsdTransaction(Category category, DollarType dollar) => new Transaction
+    {
+        Id = Guid.NewGuid(),
+        Amount = 10,
+        Currency = Currency.USD,
+        ExchangeRate = 1200m,
+        BlueExchangeRate = 1100m,
+        MepExchangeRate = 1300m,
+        DollarType = dollar,
+        Date = new DateOnly(2026, 11, 3),
+        CategoryId = category.Id,
+        Category = category
+    };
+
+    [Theory]
+    [InlineData(DollarType.Official, 1200, 12000)]
+    [InlineData(DollarType.Blue, 1100, 11000)]
+    [InlineData(DollarType.Mep, 1300, 13000)]
+    public async Task GetPage_ExpressesEachUsdTransactionWithTheDollarItWasSavedWith(DollarType saved, double rate, double inPesos)
+    {
+        SetupPage(total: 1, UsdTransaction(_category, saved));
+
+        var result = await _transactionService.GetPage(new TransactionPageRequest(), _userId);
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal((decimal)rate, item.ExchangeRate);
+        Assert.Equal((decimal)inPesos, item.ArsAmount);
+        Assert.Equal(saved, item.DollarType);
+    }
+
+    [Theory]
+    [InlineData(DollarType.Official)]
+    [InlineData(DollarType.Blue)]
+    [InlineData(DollarType.Mep)]
+    public async Task GetPage_DoesNotChangeATransaction_WhenTheUserChoosesAnotherDollarLater(DollarType chosenNow)
+    {
+        // Saved with blue; whatever the user has chosen since, it still says blue and keeps the blue rate
+        _user.DollarType = chosenNow;
+        SetupPage(total: 1, UsdTransaction(_category, DollarType.Blue));
+
+        var result = await _transactionService.GetPage(new TransactionPageRequest(), _userId);
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal(DollarType.Blue, item.DollarType);
+        Assert.Equal(1100m, item.ExchangeRate);
+        Assert.Equal(11000m, item.ArsAmount);
+    }
+
+    [Fact]
+    public async Task GetPage_MixesDollarsInOneList_EachTransactionWithItsOwn()
+    {
+        SetupPage(total: 2, UsdTransaction(_category, DollarType.Official), UsdTransaction(_category, DollarType.Mep));
+
+        var result = await _transactionService.GetPage(new TransactionPageRequest(), _userId);
+
+        Assert.Equal(new[] { DollarType.Official, DollarType.Mep }, result.Items.Select(i => i.DollarType).ToArray());
+        Assert.Equal(new decimal?[] { 12000m, 13000m }, result.Items.Select(i => i.ArsAmount).ToArray());
+    }
+
+    [Fact]
+    public async Task GetPage_ReportsNoRate_ForATransactionWhoseOwnDollarHasNoRate()
+    {
+        var old = UsdTransaction(_category, DollarType.Blue);
+        old.BlueExchangeRate = null; // the blue rate could not be obtained when it was saved
+        SetupPage(total: 1, old);
+
+        var result = await _transactionService.GetPage(new TransactionPageRequest(), _userId);
+
+        var item = Assert.Single(result.Items);
+        Assert.Null(item.ExchangeRate);
+        Assert.Null(item.ArsAmount); // not made up with another dollar's rate: the report resolves it and says so
+        Assert.Equal(DollarType.Blue, item.DollarType); // and the list can say which rate is missing
+    }
+
+    [Fact]
+    public async Task GetPage_DoesNotChangeAnArsTransaction()
+    {
+        SetupPage(total: 1, new Transaction
+        {
+            Id = Guid.NewGuid(), Amount = 500, Currency = Currency.ARS, CategoryId = _category.Id, Category = _category
+        });
+
+        var result = await _transactionService.GetPage(new TransactionPageRequest(), _userId);
+
+        Assert.Equal(500m, Assert.Single(result.Items).ArsAmount);
+    }
+
+    [Fact]
+    public async Task GetPage_DoesNotEvenAskForTheUser_ThatIsNotNeededToReadATransaction()
+    {
+        SetupPage(total: 1, UsdTransaction(_category, DollarType.Mep));
+
+        await _transactionService.GetPage(new TransactionPageRequest(), _userId);
+
+        _userRepositoryMock.Verify(r => r.Get(It.IsAny<Guid>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetById_ExpressesTheTransactionWithTheDollarItWasSavedWith()
+    {
+        _user.DollarType = DollarType.Official; // the user has gone back to the official one since
+        var transaction = UsdTransaction(_category, DollarType.Blue);
+        _transactionRepositoryMock.Setup(r => r.GetByIdWithCategory(transaction.Id, _userId)).ReturnsAsync(transaction);
+
+        var result = await _transactionService.GetById(transaction.Id, _userId);
+
+        Assert.Equal(11000m, result.ArsAmount);
+        Assert.Equal(DollarType.Blue, result.DollarType);
+    }
+
+    [Fact]
+    public async Task GetForExport_ExpressesEachRowWithTheDollarItWasSavedWith()
+    {
+        SetupPage(total: 2, UsdTransaction(_category, DollarType.Mep), UsdTransaction(_category, DollarType.Official));
+
+        var result = await _transactionService.GetForExport(new TransactionPageRequest(), _userId);
+
+        Assert.Equal(new decimal?[] { 13000m, 12000m }, result.Select(r => r.ArsAmount).ToArray());
+        Assert.Equal(new[] { DollarType.Mep, DollarType.Official }, result.Select(r => r.DollarType).ToArray());
+    }
+
+    [Theory]
+    [InlineData(DollarType.Official)]
+    [InlineData(DollarType.Blue)]
+    [InlineData(DollarType.Mep)]
+    public async Task Create_SavesAUsdTransactionWithTheDollarTheUserHasChosenNow(DollarType chosen)
+    {
+        _user.DollarType = chosen;
+        _dolarApiServiceMock.Setup(s => s.GetUsdSellRates()).ReturnsAsync(new UsdRates(1200m, 1100m, 1300m));
+        var request = ValidRequest();
+        request.Currency = Currency.USD;
+
+        await _transactionService.Create(request, _userId);
+
+        _transactionRepositoryMock.Verify(r => r.Add(It.Is<Transaction>(t => t.DollarType == chosen)), Times.Once);
+    }
+
+    [Fact]
+    public async Task Create_SavesATransactionInPesosAsOfficial_WhateverTheUserHasChosen()
+    {
+        _user.DollarType = DollarType.Mep;
+
+        await _transactionService.Create(ValidRequest(), _userId);
+
+        _transactionRepositoryMock.Verify(r => r.Add(It.Is<Transaction>(t => t.DollarType == DollarType.Official)), Times.Once);
+    }
+
+    [Fact]
+    public async Task Create_SavesWithTheOfficialDollar_WhenTheUserCannotBeFound()
+    {
+        _userRepositoryMock.Setup(r => r.Get(_userId)).ReturnsAsync((User?)null);
+        _dolarApiServiceMock.Setup(s => s.GetUsdSellRates()).ReturnsAsync(new UsdRates(1200m, null, null));
+        var request = ValidRequest();
+        request.Currency = Currency.USD;
+
+        await _transactionService.Create(request, _userId);
+
+        _transactionRepositoryMock.Verify(r => r.Add(It.Is<Transaction>(t => t.DollarType == DollarType.Official)), Times.Once);
+    }
+
+    [Fact]
+    public async Task Update_KeepsTheDollarTheTransactionWasSavedWith_WhenOnlyTheNoteChanges()
+    {
+        _user.DollarType = DollarType.Mep; // chosen after the transaction was saved
+        var existing = ExistingUsdTransaction(rate: 900m);
+        existing.DollarType = DollarType.Blue;
+        existing.BlueExchangeRate = 880m;
+        var request = ValidRequest();
+        request.Currency = Currency.USD;
+        request.Note = "only the note changes";
+
+        await _transactionService.Update(request, existing.Id, _userId);
+
+        Assert.Equal(DollarType.Blue, existing.DollarType);
+        Assert.Equal(880m, existing.BlueExchangeRate);
+        _dolarApiServiceMock.Verify(s => s.GetUsdSellRates(), Times.Never);
+    }
+
+    [Fact]
+    public async Task Update_TakesTheRatesAgainWithTheDollarChosenNow_WhenTheAmountChanges()
+    {
+        _user.DollarType = DollarType.Mep;
+        _dolarApiServiceMock.Setup(s => s.GetUsdSellRates()).ReturnsAsync(new UsdRates(1500m, 1400m, 1600m));
+        var existing = ExistingUsdTransaction(rate: 900m); // was official
+        var request = ValidRequest();
+        request.Currency = Currency.USD;
+        request.Amount += 1;
+
+        await _transactionService.Update(request, existing.Id, _userId);
+
+        Assert.Equal(DollarType.Mep, existing.DollarType); // saving again is saving with what is chosen now
+        Assert.Equal(1600m, existing.MepExchangeRate);
+    }
+
+    [Fact]
+    public async Task Update_MovesATransactionFromPesosToUsdWithTheDollarChosenNow()
+    {
+        _user.DollarType = DollarType.Blue;
+        _dolarApiServiceMock.Setup(s => s.GetUsdSellRates()).ReturnsAsync(new UsdRates(1500m, 1400m, 1600m));
+        var existing = new Transaction
+        {
+            Id = Guid.NewGuid(), UserId = _userId, Amount = 15000, Currency = Currency.ARS,
+            Date = new DateOnly(2026, 11, 3), CategoryId = _category.Id
+        };
+        _transactionRepositoryMock.Setup(r => r.Get(existing.Id)).ReturnsAsync(existing);
+        var request = ValidRequest();
+        request.Currency = Currency.USD;
+
+        await _transactionService.Update(request, existing.Id, _userId);
+
+        Assert.Equal(DollarType.Blue, existing.DollarType);
+        Assert.Equal(1400m, existing.BlueExchangeRate);
+    }
+
+    [Fact]
+    public async Task Update_ResetsTheDollarToOfficial_WhenATransactionBecomesPesos()
+    {
+        var existing = ExistingUsdTransaction(rate: 900m);
+        existing.DollarType = DollarType.Blue;
+
+        await _transactionService.Update(ValidRequest(), existing.Id, _userId); // ValidRequest is in pesos
+
+        Assert.Equal(DollarType.Official, existing.DollarType);
     }
 
     [Fact]

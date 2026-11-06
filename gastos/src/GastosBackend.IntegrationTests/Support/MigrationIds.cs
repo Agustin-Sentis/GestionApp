@@ -6,4 +6,6 @@ public static class MigrationIds
     public const string Init = "20261105211559_Init";
     public const string AddExchangeRateAndCreatedDate = "20261106014511_AddExchangeRateAndCreatedDate";
     public const string CaseInsensitiveCategoryNames = "20261106023938_CaseInsensitiveCategoryNames";
+    public const string AddDollarTypes = "20261106181528_AddDollarTypes";
+    public const string AddTransactionDollarType = "20261106183635_AddTransactionDollarType";
 }

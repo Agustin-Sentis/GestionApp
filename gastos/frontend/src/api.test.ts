@@ -122,6 +122,39 @@ describe('requests', () => {
     })
   })
 
+  it('reads the settings of the signed-in user', async () => {
+    signIn()
+    const fetchMock = mockFetch(() => ({ body: { dollarType: 'Blue' } }))
+
+    const settings = await api.settings.get()
+
+    expect(settings).toEqual({ dollarType: 'Blue' })
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toMatch(/\/api\/settings$/)
+    expect(init?.method ?? 'GET').toBe('GET')
+    expect(headersOf(init)['authorization']).toBe('Bearer jwt-token')
+  })
+
+  it.each(['Official', 'Blue', 'Mep'] as const)('saves the %s dollar with PUT, as text', async (dollarType) => {
+    signIn()
+    const fetchMock = mockFetch(() => ({ body: { dollarType } }))
+
+    const saved = await api.settings.update(dollarType)
+
+    expect(saved).toEqual({ dollarType })
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toMatch(/\/api\/settings$/)
+    expect(init?.method).toBe('PUT')
+    expect(JSON.parse(String(init?.body))).toEqual({ dollarType }) // the enum travels as its name, not as a number
+  })
+
+  it('raises the error of the server when the dollar is refused', async () => {
+    signIn()
+    mockFetch(() => ({ status: 400, body: { error: 'El tipo de dólar no es válido.' } }))
+
+    await expect(api.settings.update('Blue')).rejects.toMatchObject({ status: 400, message: 'El tipo de dólar no es válido.' })
+  })
+
   it('fetches one transaction by id', async () => {
     const fetchMock = mockFetch(() => ({ body: { id: 't1', exchangeRate: 1570, arsAmount: 15700 } }))
 

@@ -11,7 +11,7 @@ function report(rows: CategoryTotal[]): MonthlyReport {
   return {
     year: 2026, month: 11, currency: 'ARS',
     income: totalOf('Income'), expense: totalOf('Expense'), balance: totalOf('Income') - totalOf('Expense'),
-    byCategory: rows, usdRateUsed: null, hasUnconvertedUsd: false,
+    byCategory: rows, pendingConversions: [], hasUnconvertedUsd: false, previous: null,
   }
 }
 

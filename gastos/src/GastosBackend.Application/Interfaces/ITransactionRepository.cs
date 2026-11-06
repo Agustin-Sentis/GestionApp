@@ -20,7 +20,11 @@ namespace GastosBackend.Application.Interfaces
 
         Task<bool> ExistsByCategory(Guid categoryId);
 
-        /// <summary>Totales agrupados por categoría y moneda (GROUP BY + SUM en la base).</summary>
+        /// <summary>
+        /// Totales agrupados por categoría, moneda y (para los dólares) tipo de dólar (GROUP BY + SUM en la base).
+        /// Cada movimiento en dólares se convierte con la cotización de SU tipo de dólar, la que se guardó con él;
+        /// los que no la tienen quedan en PendingUsd.
+        /// </summary>
         Task<List<CategoryTotalRow>> GetMonthlyTotals(Guid userId, DateOnly from, DateOnly toExclusive);
     }
 }

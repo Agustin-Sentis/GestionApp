@@ -67,7 +67,7 @@ describe('loading states', () => {
         { name: 'Sueldo', type: 'Income', total: 1000 },
         { name: 'Comida', type: 'Expense', total: 400 },
       ],
-      usdRateUsed: null, hasUnconvertedUsd: false,
+      pendingConversions: [], hasUnconvertedUsd: false,
     })
 
     await waitFor(() => expect(screen.queryByText('Cargando el resumen…')).not.toBeInTheDocument())

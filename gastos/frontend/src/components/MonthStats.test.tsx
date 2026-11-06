@@ -9,7 +9,7 @@ import MonthStats from './MonthStats.tsx'
 function reportOf(overrides: Partial<MonthlyReport> = {}): MonthlyReport {
   return {
     year: 2026, month: 11, currency: 'ARS', income: 100000, expense: 70000, balance: 30000,
-    byCategory: [], usdRateUsed: null, hasUnconvertedUsd: false, ...overrides,
+    byCategory: [], pendingConversions: [], hasUnconvertedUsd: false, previous: null, ...overrides,
   }
 }
 
@@ -83,6 +83,97 @@ describe('MonthStats', () => {
     expect(screen.getByText('Cargando las cifras del mes…')).toBeInTheDocument()
     expect(await screen.findByText('Gastos')).toBeInTheDocument()
     expect(screen.queryByText('Cargando las cifras del mes…')).not.toBeInTheDocument()
+  })
+
+  describe('comparison with the month before', () => {
+    const october = { year: 2026, month: 10, income: 80000, expense: 100000, balance: -20000, hasUnconvertedUsd: false }
+
+    /** The small line under a figure, as it is drawn (the arrow and the amount), or undefined when there is none. */
+    const comparisonOf = (label: string) => {
+      const extra = screen.getByText(label).closest('div')?.querySelectorAll('dd')[1]
+      return extra?.querySelector('[aria-hidden="true"]')?.textContent
+    }
+
+    it('says how each figure changed since the month before, naming it', async () => {
+      // November: 100.000 in (25% more than October), 70.000 out (30% less), 30.000 left (50.000 better than October's -20.000)
+      setup(() => ({ body: reportOf({ previous: october }) }))
+
+      await screen.findByText('Ingresos')
+      expect(comparisonOf('Ingresos')).toBe('▲ 25% vs. octubre')
+      expect(comparisonOf('Gastos')).toBe('▼ 30% vs. octubre')
+      expect(comparisonOf('Te queda')).toMatch(/^▲ \$\s?50\.000 vs\. octubre$/)
+    })
+
+    it('gives screen readers the whole sentence instead of the arrows', async () => {
+      setup(() => ({ body: reportOf({ previous: october }) }))
+
+      expect(await screen.findByText('25% más que en octubre')).toBeInTheDocument()
+      expect(screen.getByText('30% menos que en octubre')).toBeInTheDocument()
+      expect(screen.getByText(/50\.000 más que en octubre/)).toBeInTheDocument()
+    })
+
+    it('hides the month on a phone, where there is no room, but keeps the arrow and the amount', async () => {
+      setup(() => ({ body: reportOf({ previous: october }) }))
+
+      await screen.findByText('Ingresos')
+      const extra = screen.getByText('Ingresos').closest('div')?.querySelectorAll('dd')[1]
+      const month = extra?.querySelector('[aria-hidden="true"] span')
+      expect(month?.className).toContain('hidden')
+      expect(month?.className).toContain('sm:inline')
+    })
+
+    it('explains the change in the tooltip too', async () => {
+      setup(() => ({ body: reportOf({ previous: october }) }))
+
+      await screen.findByText('Ingresos')
+      const extra = screen.getByText('Ingresos').closest('div')?.querySelectorAll('dd')[1]
+      expect(extra?.querySelector('[aria-hidden="true"]')).toHaveAttribute('title', '25% más que en octubre')
+    })
+
+    it('shows nothing extra when there is no previous month', async () => {
+      setup(() => ({ body: reportOf({ previous: null }) }))
+
+      await screen.findByText('Ingresos')
+      expect(comparisonOf('Ingresos')).toBeUndefined()
+      expect(screen.queryByText(/más que en|menos que en|Igual que en/)).not.toBeInTheDocument()
+    })
+
+    it('shows nothing when the month before had no movements: there is nothing to compare against', async () => {
+      setup(() => ({ body: reportOf({ previous: { ...october, income: 0, expense: 0, balance: 0 } }) }))
+
+      await screen.findByText('Ingresos')
+      expect(screen.queryByText(/más que en|menos que en|Igual que en/)).not.toBeInTheDocument()
+    })
+
+    it('shows nothing when the month before is incomplete for lack of a USD rate', async () => {
+      setup(() => ({ body: reportOf({ previous: { ...october, hasUnconvertedUsd: true } }) }))
+
+      await screen.findByText('Ingresos')
+      expect(screen.queryByText(/más que en|menos que en|Igual que en/)).not.toBeInTheDocument()
+    })
+
+    it('skips only the percentage of a figure that was zero before', async () => {
+      setup(() => ({ body: reportOf({ previous: { ...october, income: 0 } }) }))
+
+      await screen.findByText('Ingresos')
+      expect(comparisonOf('Ingresos')).toBeUndefined() // no income last month: no percentage
+      expect(comparisonOf('Gastos')).toBe('▼ 30% vs. octubre')
+    })
+
+    it('compares a month that went over the income too', async () => {
+      setup(() => ({
+        body: reportOf({ income: 50000, expense: 80000, balance: -30000, previous: { ...october, balance: 10000 } }),
+      }))
+
+      expect(await screen.findByText('Te pasaste')).toBeInTheDocument()
+      expect(comparisonOf('Te pasaste')).toMatch(/^▼ \$\s?40\.000 vs\. octubre$/)
+    })
+
+    it('names December when the month shown is January', async () => {
+      setup(() => ({ body: reportOf({ previous: { ...october, year: 2025, month: 12 } }) }))
+
+      expect(await screen.findByText('25% más que en diciembre')).toBeInTheDocument()
+    })
   })
 
   it('shows nothing when the report fails: the summary panel is the one that explains it', async () => {

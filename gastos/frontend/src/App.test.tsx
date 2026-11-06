@@ -15,9 +15,13 @@ function signedIn() {
 
 function mockDashboardApi() {
   mockApi({
+    'GET /api/settings': () => ({ body: { dollarType: 'Official' } }),
     'GET /api/category': () => ({ body: [food] }),
     'GET /api/report/monthly': () => ({
-      body: { year: 2026, month: 11, currency: 'ARS', income: 0, expense: 0, balance: 0, byCategory: [], usdRateUsed: null, hasUnconvertedUsd: false },
+      body: {
+        year: 2026, month: 11, currency: 'ARS', income: 0, expense: 0, balance: 0, byCategory: [],
+        pendingConversions: [], hasUnconvertedUsd: false, previous: null,
+      },
     }),
     'GET /api/transaction/paged': () => ({ body: pageOf([]) }),
   })

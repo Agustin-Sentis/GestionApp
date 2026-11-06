@@ -59,7 +59,8 @@ namespace GastosBackend.Infrastructure
 
             try
             {
-                var rate = await services.GetRequiredService<IDolarApiService>().GetUsdSellRate();
+                // Only the official rate: it is the one every transaction recorded before this fix is missing
+                var rate = await services.GetRequiredService<IDolarApiService>().GetUsdSellRate(DollarType.Official);
 
                 var updated = await pending.ExecuteUpdateAsync(
                     s => s.SetProperty(t => t.ExchangeRate, rate), cancellationToken);

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { saveSession } from '../api.ts'
 import { downloadBlob } from '../download.ts'
+import { formatMoney } from '../format.ts'
 import { anyBlob } from '../test/blob.ts'
 import { mockApi } from '../test/fetchMock.ts'
 import { food, pageOf, salary, transaction } from '../test/fixtures.ts'
@@ -64,7 +65,30 @@ describe('TransactionList rows', () => {
     }))
 
     expect(await screen.findByText(/US\$/)).toBeInTheDocument()
-    expect(screen.getByText(/≈\s?\$\s?15\.700,00 · cotización\s?\$\s?1\.570,00/)).toBeInTheDocument()
+    expect(screen.getByText(/≈\s?\$\s?15\.700,00 · cotización oficial\s?\$\s?1\.570,00/)).toBeInTheDocument()
+  })
+
+  it.each([
+    ['Official', 'oficial', 1570, 15700],
+    ['Blue', 'blue', 1555, 15550],
+    ['Mep', 'MEP', 1582.2, 15822],
+  ] as const)('says next to a USD amount which dollar it was converted with: %s', async (dollarType, name, rate, inPesos) => {
+    setup('/', () => ({
+      body: pageOf([transaction({ currency: 'USD', amount: 10, exchangeRate: rate, arsAmount: inPesos, dollarType })]),
+    }))
+
+    // The money format has a non-breaking space; compare with a normal one
+    const plain = (text: string | null) => text?.replace(/ /g, ' ')
+    const detail = await screen.findByText(new RegExp(`cotización ${name} `))
+    expect(plain(detail.textContent)).toBe(`≈ ${plain(formatMoney(inPesos))} · cotización ${name} ${plain(formatMoney(rate))}`)
+  })
+
+  it('names the dollar that is missing when a USD transaction has no rate of the chosen one', async () => {
+    setup('/', () => ({
+      body: pageOf([transaction({ currency: 'USD', amount: 10, exchangeRate: null, arsAmount: null, dollarType: 'Blue' })]),
+    }))
+
+    expect(await screen.findByText('Sin cotización blue todavía')).toBeInTheDocument()
   })
 
   it('says a USD transaction still has no rate, instead of showing a made-up amount', async () => {
@@ -72,7 +96,7 @@ describe('TransactionList rows', () => {
       body: pageOf([transaction({ currency: 'USD', amount: 10, exchangeRate: null, arsAmount: null })]),
     }))
 
-    expect(await screen.findByText('Sin cotización todavía')).toBeInTheDocument()
+    expect(await screen.findByText('Sin cotización oficial todavía')).toBeInTheDocument()
     expect(screen.queryByText(/≈/)).not.toBeInTheDocument()
   })
 
@@ -158,6 +182,38 @@ describe('TransactionList filters', () => {
 
     await waitFor(() => expect(pagedRequests().at(-1)).toMatchObject({ from: '2026-03-05', to: '2026-03-20' }))
     expect(pagedRequests().at(-1)).not.toHaveProperty('year')
+  })
+
+  it('puts the range options in order: the tick on its own row, "Desde" and "Hasta" under it, and the two actions last', async () => {
+    setup('/?mes=2026-03&rango=1&desde=2026-03-01&hasta=2026-03-15', () => ({ body: pageOf([transaction()]) }))
+    await screen.findByText('almuerzo')
+
+    const tick = screen.getByLabelText('Rango de fechas').closest('label')!
+    expect(tick.className).toContain('col-span-2')
+
+    // Order in the page: tick, Desde, Hasta, then the row with the actions
+    const filters = tick.parentElement!
+    const order = Array.from(filters.children).map((child) => child.textContent?.trim())
+    expect(order.indexOf('Rango de fechas')).toBeLessThan(order.findIndex((text) => text?.startsWith('Desde')))
+    expect(order.findIndex((text) => text?.startsWith('Desde'))).toBeLessThan(order.findIndex((text) => text?.startsWith('Hasta')))
+    expect(order.findIndex((text) => text?.startsWith('Hasta'))).toBeLessThan(order.findIndex((text) => text?.includes('Exportar CSV')))
+
+    // Clearing and exporting share one row, in that order
+    const actions = screen.getByRole('button', { name: 'Exportar CSV' }).parentElement!
+    expect(actions.className).toContain('col-span-2')
+    expect(Array.from(actions.querySelectorAll('button')).map((button) => button.textContent)).toEqual([
+      'Limpiar filtros',
+      'Exportar CSV',
+    ])
+  })
+
+  it('keeps the export button on the right when there is nothing to clear', async () => {
+    setup('/', () => ({ body: pageOf([transaction()]) }))
+    await screen.findByText('almuerzo')
+
+    const actions = screen.getByRole('button', { name: 'Exportar CSV' }).parentElement!
+    expect(actions.querySelectorAll('button')).toHaveLength(1)
+    expect(actions.className).toContain('justify-between')
   })
 
   it('warns that the summary above still shows the month while a range is used', async () => {

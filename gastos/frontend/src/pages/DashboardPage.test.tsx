@@ -12,12 +12,13 @@ vi.mock('../components/ReportChart.tsx', () => ({ default: () => <div data-testi
 
 const report = {
   year: 2026, month: 11, currency: 'ARS', income: 0, expense: 1500, balance: -1500,
-  byCategory: [], usdRateUsed: null, hasUnconvertedUsd: false,
+  byCategory: [], pendingConversions: [], hasUnconvertedUsd: false, previous: null,
 }
 
 function setup(route = '/?mes=2026-11', extraRoutes: Parameters<typeof mockApi>[0] = {}) {
   saveSession({ token: 'jwt', expiresAtUtc: new Date(Date.now() + 3_600_000).toISOString() })
   const fetchMock = mockApi({
+    'GET /api/settings': () => ({ body: { dollarType: 'Official' } }),
     'GET /api/category': () => ({ body: [food] }),
     'GET /api/report/monthly': () => ({ body: report }),
     'GET /api/transaction/paged': () => ({ body: pageOf([transaction()]) }),
@@ -121,6 +122,90 @@ describe('DashboardPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Sí' }))
 
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Nuevo movimiento' })).toBeInTheDocument())
+  })
+
+  it('has the dollar selector in the header, next to the theme one', async () => {
+    setup()
+
+    expect(await screen.findByRole('group', { name: 'Dólar con el que se guardan los movimientos nuevos' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Tema' })).toBeInTheDocument()
+  })
+
+  /** A USD movement of 10 saved with the official dollar: 1.570 each, 15.700 in pesos. */
+  const savedWithOfficial = () =>
+    transaction({ id: 't1', currency: 'USD', amount: 10, dollarType: 'Official', exchangeRate: 1570, arsAmount: 15700 })
+
+  it('does not touch the movements already saved when another dollar is chosen', async () => {
+    let dollar: 'Official' | 'Blue' = 'Official'
+    const fetchMock = setup('/?mes=2026-11', {
+      'GET /api/settings': () => ({ body: { dollarType: dollar } }),
+      'PUT /api/settings': (init) => {
+        dollar = JSON.parse(String(init.body)).dollarType
+        return { body: { dollarType: dollar } }
+      },
+      'GET /api/report/monthly': () => ({ body: { ...report, income: 0, expense: 15700, balance: -15700 } }),
+      'GET /api/transaction/paged': () => ({ body: pageOf([savedWithOfficial()]) }),
+    })
+
+    // "Gastos" is also an option of the filters: the figure of the header is the one with a label (dt) of that name
+    const expenseFigure = () =>
+      screen.getAllByText('Gastos').find((element) => element.tagName === 'DT')?.closest('div')?.textContent
+    const countOf = (path: string) =>
+      fetchMock.mock.calls.filter(([url]) => new URL(String(url)).pathname === path).length
+
+    expect(await screen.findByText(/cotización oficial/)).toBeInTheDocument()
+    await waitFor(() => expect(expenseFigure()).toMatch(/15\.700/))
+    const listRequests = countOf('/api/transaction/paged')
+    const reportRequests = countOf('/api/report/monthly')
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Blue' }))
+    await waitFor(() => expect(screen.getByRole('radio', { name: 'Blue' })).toBeChecked())
+
+    // The movement was saved with the official dollar, and still says so, with the same amount
+    expect(screen.getByText(/cotización oficial/)).toBeInTheDocument()
+    expect(screen.queryByText(/cotización blue/)).not.toBeInTheDocument()
+    expect(expenseFigure()).toMatch(/15\.700/)
+    // Nothing was asked for again: there is nothing that could have changed
+    expect(countOf('/api/transaction/paged')).toBe(listRequests)
+    expect(countOf('/api/report/monthly')).toBe(reportRequests)
+  })
+
+  it('saves a new USD movement with the dollar chosen at that moment, and the earlier one keeps its own', async () => {
+    let dollar: 'Official' | 'Blue' = 'Official'
+    const movements = [savedWithOfficial()]
+    setup('/?mes=2026-11', {
+      'GET /api/settings': () => ({ body: { dollarType: dollar } }),
+      'PUT /api/settings': (init) => {
+        dollar = JSON.parse(String(init.body)).dollarType
+        return { body: { dollarType: dollar } }
+      },
+      'GET /api/transaction/paged': () => ({ body: pageOf([...movements]) }),
+      'POST /api/transaction': () => {
+        // The server saves it with the dollar the user has chosen right now
+        const created = transaction({
+          id: 't2', currency: 'USD', amount: 10, dollarType: dollar, exchangeRate: 1555, arsAmount: 15550, note: 'nuevo',
+        })
+        movements.push(created)
+        return { status: 201, body: created }
+      },
+    })
+    await screen.findByText(/cotización oficial/)
+
+    // Choose blue, then load a USD movement
+    await userEvent.click(screen.getByRole('radio', { name: 'Blue' }))
+    await waitFor(() => expect(screen.getByRole('radio', { name: 'Blue' })).toBeChecked())
+    const form = screen.getByRole('heading', { name: 'Nuevo movimiento' }).closest('form')!
+    await userEvent.selectOptions(within(form).getByLabelText('Moneda'), 'USD')
+    // Before saving, the form already says which rate it is going to get
+    expect(await within(form).findByText(/Se va a guardar con la cotización blue de hoy/)).toBeInTheDocument()
+
+    await userEvent.type(within(form).getByLabelText('Monto'), '10')
+    await userEvent.selectOptions(within(form).getByLabelText('Categoría'), food.id)
+    await userEvent.click(within(form).getByRole('button', { name: 'Agregar' }))
+
+    // Two movements in the list, each with its own dollar ("·" is only in the rows: the form's note says it differently)
+    expect(await screen.findByText(/· cotización blue/)).toBeInTheDocument()
+    expect(screen.getByText(/· cotización oficial/)).toBeInTheDocument()
   })
 
   it('updates the summary chart to the real percentages when an income is added', async () => {

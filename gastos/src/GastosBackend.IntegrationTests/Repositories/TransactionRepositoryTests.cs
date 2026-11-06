@@ -383,6 +383,145 @@ public class TransactionRepositoryTests
         Assert.Empty(rows);
     }
 
+    // ---------- GetMonthlyTotals: each transaction with the dollar it was saved with ----------
+
+    private static readonly DateOnly November = new(2026, 11, 1);
+    private static readonly DateOnly December = new(2026, 12, 1);
+
+    [Theory]
+    [InlineData(DollarType.Official, 15000)] // 10 USD * 1500
+    [InlineData(DollarType.Blue, 14000)] // 10 USD * 1400
+    [InlineData(DollarType.Mep, 16000)] // 10 USD * 1600
+    public async Task MonthlyTotals_ConvertATransactionWithTheStoredRateOfTheDollarItWasSavedWith(DollarType saved, double expected)
+    {
+        var database = await MigratedDatabase();
+        var user = await database.AddUserAsync();
+        var food = await database.AddCategoryAsync(user.Id, "Food");
+        await database.AddTransactionAsync(
+            user.Id, food.Id, "2026-11-05", amount: 10m, currency: Currency.USD, exchangeRate: 1500m,
+            blueExchangeRate: 1400m, mepExchangeRate: 1600m, dollarType: saved);
+
+        await using var context = database.CreateContext();
+        var row = (await new TransactionRepository(context).GetMonthlyTotals(user.Id, November, December)).Single();
+
+        Assert.Equal(((decimal)expected, 0m, saved), (row.Total, row.PendingUsd, row.DollarType));
+    }
+
+    [Fact]
+    public async Task MonthlyTotals_KeepTransactionsSavedWithDifferentDollarsInDifferentRows_EachWithItsOwnRate()
+    {
+        var database = await MigratedDatabase();
+        var user = await database.AddUserAsync();
+        var food = await database.AddCategoryAsync(user.Id, "Food");
+        // The same category, three transactions of 10 USD saved on different days with three different dollars
+        await database.AddTransactionAsync(
+            user.Id, food.Id, "2026-11-03", amount: 10m, currency: Currency.USD, exchangeRate: 1500m, dollarType: DollarType.Official);
+        await database.AddTransactionAsync(
+            user.Id, food.Id, "2026-11-04", amount: 10m, currency: Currency.USD, exchangeRate: 1500m,
+            blueExchangeRate: 1400m, mepExchangeRate: 1600m, dollarType: DollarType.Blue);
+        await database.AddTransactionAsync(
+            user.Id, food.Id, "2026-11-05", amount: 10m, currency: Currency.USD, exchangeRate: 1500m,
+            blueExchangeRate: 1400m, mepExchangeRate: 1600m, dollarType: DollarType.Mep);
+
+        await using var context = database.CreateContext();
+        var rows = await new TransactionRepository(context).GetMonthlyTotals(user.Id, November, December);
+
+        Assert.Equal(3, rows.Count);
+        Assert.Equal(15000m, rows.Single(r => r.DollarType == DollarType.Official).Total);
+        Assert.Equal(14000m, rows.Single(r => r.DollarType == DollarType.Blue).Total);
+        Assert.Equal(16000m, rows.Single(r => r.DollarType == DollarType.Mep).Total);
+    }
+
+    [Fact]
+    public async Task MonthlyTotals_DoNotDependOnWhatTheUserHasChosenSince_OnlyOnWhatEachTransactionStored()
+    {
+        var database = await MigratedDatabase();
+        var user = await database.AddUserAsync(); // the user's own dollar is Official, the default
+        var food = await database.AddCategoryAsync(user.Id, "Food");
+        await database.AddTransactionAsync(
+            user.Id, food.Id, "2026-11-05", amount: 10m, currency: Currency.USD, exchangeRate: 1500m,
+            blueExchangeRate: 1400m, dollarType: DollarType.Blue);
+
+        await using var context = database.CreateContext();
+        var row = (await new TransactionRepository(context).GetMonthlyTotals(user.Id, November, December)).Single();
+
+        Assert.Equal(14000m, row.Total); // blue, as saved, although the user's setting says Official
+    }
+
+    [Theory]
+    [InlineData(DollarType.Official, 15000)] // has its official rate: 10 USD * 1500
+    [InlineData(DollarType.Blue, 0)] // saved with blue, which has no rate: pending
+    [InlineData(DollarType.Mep, 0)]
+    public async Task MonthlyTotals_TreatATransactionWithoutTheRateOfItsOwnDollarAsPending(DollarType saved, double stored)
+    {
+        var database = await MigratedDatabase();
+        var user = await database.AddUserAsync();
+        var food = await database.AddCategoryAsync(user.Id, "Food");
+        // Only the official rate was obtained (or the others failed): the transaction was saved with a dollar that has none
+        await database.AddTransactionAsync(
+            user.Id, food.Id, "2026-11-05", amount: 10m, currency: Currency.USD, exchangeRate: 1500m, dollarType: saved);
+
+        await using var context = database.CreateContext();
+        var row = (await new TransactionRepository(context).GetMonthlyTotals(user.Id, November, December)).Single();
+
+        Assert.Equal(((decimal)stored, saved == DollarType.Official ? 0m : 10m), (row.Total, row.PendingUsd));
+        Assert.Equal(saved, row.DollarType); // the service needs to know whose current rate converts the pending ones
+    }
+
+    [Fact]
+    public async Task MonthlyTotals_AddUpTransactionsOfOneDollarWithAndWithoutTheRate_Separately()
+    {
+        var database = await MigratedDatabase();
+        var user = await database.AddUserAsync();
+        var food = await database.AddCategoryAsync(user.Id, "Food");
+        await database.AddTransactionAsync(
+            user.Id, food.Id, "2026-11-03", amount: 2m, currency: Currency.USD, blueExchangeRate: 1400m, dollarType: DollarType.Blue);
+        await database.AddTransactionAsync(
+            user.Id, food.Id, "2026-11-04", amount: 5m, currency: Currency.USD, dollarType: DollarType.Blue); // no rate at all
+
+        await using var context = database.CreateContext();
+        var blue = (await new TransactionRepository(context).GetMonthlyTotals(user.Id, November, December)).Single();
+
+        Assert.Equal((2800m, 5m), (blue.Total, blue.PendingUsd)); // 2 * 1400 converted; the 5 USD without a rate pending
+    }
+
+    [Theory]
+    [InlineData(DollarType.Official)]
+    [InlineData(DollarType.Blue)]
+    [InlineData(DollarType.Mep)]
+    public async Task MonthlyTotals_DoNotSplitTransactionsInPesos_WhateverDollarTheyCarry(DollarType carried)
+    {
+        var database = await MigratedDatabase();
+        var user = await database.AddUserAsync();
+        var food = await database.AddCategoryAsync(user.Id, "Food");
+        await database.AddTransactionAsync(user.Id, food.Id, "2026-11-05", amount: 1234.5m, dollarType: carried);
+        await database.AddTransactionAsync(user.Id, food.Id, "2026-11-06", amount: 100m, dollarType: DollarType.Mep);
+
+        await using var context = database.CreateContext();
+        var row = (await new TransactionRepository(context).GetMonthlyTotals(user.Id, November, December)).Single();
+
+        // One row: a dollar type means nothing for pesos, so it must not turn one category into several lines
+        Assert.Equal((1334.5m, 0m, DollarType.Official), (row.Total, row.PendingUsd, row.DollarType));
+    }
+
+    [Fact]
+    public async Task MonthlyTotals_KeepTheExactDecimalsOfTheBlueAndMepRates()
+    {
+        var database = await MigratedDatabase();
+        var user = await database.AddUserAsync();
+        var food = await database.AddCategoryAsync(user.Id, "Food");
+        await database.AddTransactionAsync(
+            user.Id, food.Id, "2026-11-05", amount: 10.5m, currency: Currency.USD, blueExchangeRate: 1555.5555m, dollarType: DollarType.Blue);
+        await database.AddTransactionAsync(
+            user.Id, food.Id, "2026-11-06", amount: 10.5m, currency: Currency.USD, mepExchangeRate: 1582.2m, dollarType: DollarType.Mep);
+
+        await using var context = database.CreateContext();
+        var rows = await new TransactionRepository(context).GetMonthlyTotals(user.Id, November, December);
+
+        Assert.Equal(16333.33275m, rows.Single(r => r.DollarType == DollarType.Blue).Total); // 10.5 * 1555.5555, exact: SQL does not round
+        Assert.Equal(16613.1m, rows.Single(r => r.DollarType == DollarType.Mep).Total); // 10.5 * 1582.2
+    }
+
     // ---------- GetByIdWithCategory / ExistsByCategory ----------
 
     [Fact]

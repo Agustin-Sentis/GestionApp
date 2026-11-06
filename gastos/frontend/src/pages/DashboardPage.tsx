@@ -6,6 +6,7 @@ import { MAX_MONTH, MIN_MONTH, addMonths, parseMonthValue } from '../format.ts'
 import { useListFilters } from '../useListFilters.ts'
 import Brand, { APP_NAME, BrandMark } from '../components/Brand.tsx'
 import CategoryManager from '../components/CategoryManager.tsx'
+import DollarTypeToggle from '../components/DollarTypeToggle.tsx'
 import MonthStats from '../components/MonthStats.tsx'
 import MonthlyReportView from '../components/MonthlyReportView.tsx'
 import ThemeToggle from '../components/ThemeToggle.tsx'
@@ -112,6 +113,7 @@ export default function DashboardPage() {
 
           {/* Wraps: with no room for both, "Salir" goes under the theme control instead of being cut off */}
           <div className="order-2 ml-auto flex min-w-0 flex-wrap items-center justify-end gap-3 lg:order-4">
+            <DollarTypeToggle />
             <ThemeToggle />
             <button type="button" className="btn" onClick={logout}>Salir</button>
           </div>

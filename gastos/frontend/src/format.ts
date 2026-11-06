@@ -66,6 +66,11 @@ export function defaultDateForMonth(month: string, today = todayLocal()): string
   return `${month}-${String(lastDay).padStart(2, '0')}`
 }
 
+/** 10 → "octubre" */
+export function monthName(month: number): string {
+  return new Date(2000, month - 1, 1).toLocaleDateString('es-AR', { month: 'long' })
+}
+
 /** yyyy-MM → "noviembre de 2026" */
 export function formatMonth(value: string): string {
   const { year, month } = parseMonthValue(value)
