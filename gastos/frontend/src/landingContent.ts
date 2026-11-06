@@ -35,7 +35,7 @@ export function sampleTotals(lines: readonly SampleLine[] = SAMPLE_LINES) {
 export const CAPABILITIES: readonly { concept: string; what: string }[] = [
   {
     concept: 'Pesos y dólares',
-    what: 'Anotá cada movimiento en ARS o USD. Los dólares se pasan a pesos con la cotización oficial del día en que los cargás, y esa cotización queda guardada: los meses cerrados no cambian.',
+    what: 'Anotá cada movimiento en ARS o USD. Elegí con qué dólar se guardan los nuevos (oficial, blue o MEP): cada movimiento conserva la cotización del día en que lo cargaste y el dólar con el que se guardó, así los meses cerrados no cambian.',
   },
   {
     concept: 'Tus categorías',

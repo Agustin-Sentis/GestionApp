@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { addMonths, currentMonthValue, defaultDateForMonth, formatDate, formatMoney, formatMoneyCompact, formatMonth, parseMonthValue, todayLocal } from './format.ts'
+import { addMonths, currentMonthValue, defaultDateForMonth, formatDate, formatMoney, formatMoneyCompact, formatMonth, monthName, parseMonthValue, todayLocal } from './format.ts'
 
 // Intl separates the symbol from the number with a non-breaking space: compare with a normal one
 const plain = (text: string) => text.replace(/ /g, ' ')
@@ -39,6 +39,15 @@ describe('formatMoneyCompact', () => {
       const compact = plain(formatMoneyCompact(amount))
       expect(plain(formatMoney(amount))).toContain(compact)
     }
+  })
+})
+
+describe('monthName', () => {
+  it.each([
+    [1, 'enero'], [2, 'febrero'], [3, 'marzo'], [4, 'abril'], [5, 'mayo'], [6, 'junio'],
+    [7, 'julio'], [8, 'agosto'], [9, 'septiembre'], [10, 'octubre'], [11, 'noviembre'], [12, 'diciembre'],
+  ])('names month %i as "%s"', (number, name) => {
+    expect(monthName(number)).toBe(name)
   })
 })
 

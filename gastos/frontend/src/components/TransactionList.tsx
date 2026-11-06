@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { useEffect, useState } from 'react'
 import { api, EXPENSE, INCOME } from '../api.ts'
 import type { Transaction, TransactionType } from '../api.ts'
+import { DOLLAR_NAMES } from '../dollar.ts'
 import { downloadBlob, exportFileName } from '../download.ts'
 import { formatDate, formatMoney, formatMonth } from '../format.ts'
 import { SEARCH_MAX_LENGTH, useListFilters } from '../useListFilters.ts'
@@ -138,7 +139,8 @@ export default function TransactionList({ onEdit, editingId = null, onDeleted }:
           />
         </label>
 
-        <label className="inline-flex items-center gap-2 py-2 text-sm">
+        {/* On its own row: "Desde" and "Hasta" then sit side by side under it, and not one beside the tick and one below */}
+        <label className="col-span-2 inline-flex items-center gap-2 py-1 text-sm">
           <input
             type="checkbox"
             checked={filters.rangeMode}
@@ -160,20 +162,25 @@ export default function TransactionList({ onEdit, editingId = null, onDeleted }:
           </>
         )}
 
-        {hasExtraFilters && (
-          <button type="button" className="btn-link py-2" onClick={list.clear}>
-            Limpiar filtros
-          </button>
-        )}
+        {/* The two actions share the last row: clearing on the left, exporting on the right */}
+        <div className="col-span-2 flex items-center justify-between gap-3 pt-1">
+          {hasExtraFilters ? (
+            <button type="button" className="btn-link" onClick={list.clear}>
+              Limpiar filtros
+            </button>
+          ) : (
+            <span />
+          )}
 
-        <button
-          type="button"
-          className="btn justify-self-end"
-          onClick={() => exportCsv.mutate()}
-          disabled={exportCsv.isPending || rangeInverted || !data || data.total === 0}
-        >
-          {exportCsv.isPending ? 'Exportando…' : 'Exportar CSV'}
-        </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => exportCsv.mutate()}
+            disabled={exportCsv.isPending || rangeInverted || !data || data.total === 0}
+          >
+            {exportCsv.isPending ? 'Exportando…' : 'Exportar CSV'}
+          </button>
+        </div>
       </div>
 
       {filters.rangeMode && (
@@ -245,8 +252,8 @@ export default function TransactionList({ onEdit, editingId = null, onDeleted }:
                       {t.currency === 'USD' && (
                         <div className="muted text-xs">
                           {t.exchangeRate !== null && t.arsAmount !== null
-                            ? `≈ ${formatMoney(t.arsAmount)} · cotización ${formatMoney(t.exchangeRate)}`
-                            : 'Sin cotización todavía'}
+                            ? `≈ ${formatMoney(t.arsAmount)} · cotización ${DOLLAR_NAMES[t.dollarType]} ${formatMoney(t.exchangeRate)}`
+                            : `Sin cotización ${DOLLAR_NAMES[t.dollarType]} todavía`}
                         </div>
                       )}
                     </td>

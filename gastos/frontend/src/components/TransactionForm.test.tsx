@@ -274,16 +274,71 @@ describe('TransactionForm editing', () => {
     expect(screen.getByRole('heading', { name: 'Editar movimiento' })).toBeInTheDocument()
   })
 
-  it('explains what happens to the saved rate when editing a USD transaction', async () => {
-    setup({ editing: transaction({ currency: 'USD', exchangeRate: 1570, arsAmount: 15700 }) })
+  it('says which dollar a USD transaction was saved with, and what happens to it if the amount or the date change', async () => {
+    setup(
+      { editing: transaction({ currency: 'USD', exchangeRate: 1555, arsAmount: 15550, dollarType: 'Blue' }) },
+      { 'GET /api/settings': () => ({ body: { dollarType: 'Mep' } }) },
+    )
 
-    expect(await screen.findByText(/La cotización se guardó al cargar el movimiento/)).toBeInTheDocument()
+    const note = await screen.findByText(/Este movimiento se guardó con la cotización blue del día en que se cargó/)
+    // It is saved again with the dollar chosen now (MEP), not with the one it had: that is what "saving again" means
+    await waitFor(() => expect(note).toHaveTextContent('se guarda de nuevo con la MEP, la de hoy'))
   })
 
-  it('does not mention the rate for an ARS transaction', async () => {
+  it('names the dollar the transaction keeps, not the one the user has chosen now', async () => {
+    setup(
+      { editing: transaction({ currency: 'USD', exchangeRate: 1570, arsAmount: 15700, dollarType: 'Official' }) },
+      { 'GET /api/settings': () => ({ body: { dollarType: 'Blue' } }) },
+    )
+
+    expect(await screen.findByText(/Este movimiento se guardó con la cotización oficial/)).toBeInTheDocument()
+  })
+
+  it('still explains it before the chosen dollar has arrived, without naming one it does not know', async () => {
+    setup(
+      { editing: transaction({ currency: 'USD', exchangeRate: 1570, arsAmount: 15700 }) },
+      { 'GET /api/settings': () => ({ status: 500, body: { error: 'caído' } }) },
+    )
+
+    const note = await screen.findByText(/Este movimiento se guardó con la cotización oficial/)
+    expect(note).toHaveTextContent('se guarda de nuevo con la que tengas elegida, la de hoy')
+  })
+
+  it('tells a new USD movement which rate it will get, and that it stays that way', async () => {
+    setup({}, { 'GET /api/settings': () => ({ body: { dollarType: 'Blue' } }) })
+
+    await userEvent.selectOptions(await screen.findByLabelText('Moneda'), 'USD')
+
+    const note = await screen.findByText(/Se va a guardar con la cotización blue de hoy/)
+    expect(note).toHaveTextContent('queda así aunque después elijas otro dólar')
+  })
+
+  it.each([
+    ['Official', 'oficial'],
+    ['Blue', 'blue'],
+    ['Mep', 'MEP'],
+  ] as const)('names the %s dollar in that note', async (dollarType, name) => {
+    setup({}, { 'GET /api/settings': () => ({ body: { dollarType } }) })
+
+    await userEvent.selectOptions(await screen.findByLabelText('Moneda'), 'USD')
+
+    expect(await screen.findByText(new RegExp(`Se va a guardar con la cotización ${name} de hoy`))).toBeInTheDocument()
+  })
+
+  it('does not mention any rate for a movement in pesos, new or being edited', async () => {
     setup({ editing })
 
     await screen.findByRole('heading', { name: 'Editar movimiento' })
     expect(screen.queryByText(/cotización/)).not.toBeInTheDocument()
+  })
+
+  it('stops mentioning the rate when the currency goes back to pesos', async () => {
+    setup()
+
+    await userEvent.selectOptions(await screen.findByLabelText('Moneda'), 'USD')
+    expect(await screen.findByText(/Se va a guardar con la cotización/)).toBeInTheDocument()
+    await userEvent.selectOptions(screen.getByLabelText('Moneda'), 'ARS')
+
+    expect(screen.queryByText(/Se va a guardar con la cotización/)).not.toBeInTheDocument()
   })
 })

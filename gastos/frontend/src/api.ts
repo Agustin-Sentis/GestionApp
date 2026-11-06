@@ -8,6 +8,16 @@ export const INCOME: TransactionType = 'Income'
 
 export type Currency = 'ARS' | 'USD'
 
+/** Which dollar USD amounts are converted with. */
+export type DollarType = 'Official' | 'Blue' | 'Mep'
+export const DOLLAR_TYPES: readonly DollarType[] = ['Official', 'Blue', 'Mep']
+
+/** What the user can change. */
+export interface Settings {
+  /** The dollar new USD movements are saved with. The ones already saved keep the dollar they were saved with. */
+  dollarType: DollarType
+}
+
 export interface AuthResponse {
   token: string
   userId: string
@@ -25,10 +35,15 @@ export interface Transaction {
   id: string
   amount: number
   currency: Currency
-  /** USD sell rate saved when the transaction was recorded. Null for ARS, and for USD ones saved while the rate was unavailable. */
+  /**
+   * USD sell rate saved when the transaction was recorded, of the dollar it was saved with (see dollarType).
+   * Null for ARS, and for USD ones that have no rate of that dollar saved (it was unavailable then).
+   */
   exchangeRate: number | null
-  /** The amount in pesos. Null only for USD transactions that have no rate yet. */
+  /** The amount in pesos with that rate. Null only for USD transactions that have no rate of their dollar yet. */
   arsAmount: number | null
+  /** The dollar exchangeRate and arsAmount are expressed with: the one chosen when it was saved. It never changes afterwards. */
+  dollarType: DollarType
   date: string // yyyy-MM-dd
   note: string | null
   categoryId: string
@@ -50,6 +65,28 @@ export interface CategoryTotal {
   total: number
 }
 
+/** The totals of the month before, to compare the month on screen against. */
+export interface PreviousMonth {
+  year: number
+  month: number
+  income: number
+  expense: number
+  balance: number
+  /** True when some USD movements of that month were left out for lack of a rate: its totals are incomplete. */
+  hasUnconvertedUsd: boolean
+}
+
+/** A dollar that had USD movements saved without a rate of their own, and today's rate that stood in for it. */
+export interface PendingConversion {
+  dollarType: DollarType
+  /** Null when that rate could not be obtained either: those movements are left out of the totals. */
+  rate: number | null
+}
+
+/**
+ * Every USD movement is converted with the rate saved with it, of the dollar it was saved with: a month can mix dollars,
+ * because the user may have chosen another one in between.
+ */
 export interface MonthlyReport {
   year: number
   month: number
@@ -58,10 +95,12 @@ export interface MonthlyReport {
   expense: number
   balance: number
   byCategory: CategoryTotal[]
-  /** Set only when today's rate was needed for USD transactions saved without one. */
-  usdRateUsed: number | null
+  /** The dollars whose today's rate was needed to complete the totals, for movements that were saved without their rate. */
+  pendingConversions: PendingConversion[]
   /** True when some USD transactions were left out of the totals because no rate was available. */
   hasUnconvertedUsd: boolean
+  /** The month before. Null only for January of the first year the app accepts. */
+  previous: PreviousMonth | null
 }
 
 /** One page of a list, plus how many items match in total. */
@@ -225,6 +264,11 @@ export const api = {
     update: (id: string, input: TransactionInput) =>
       request<void>(`/api/transaction/${id}`, put(input)),
     remove: (id: string) => request<void>(`/api/transaction/${id}`, { method: 'DELETE' }),
+  },
+
+  settings: {
+    get: () => request<Settings>('/api/settings'),
+    update: (dollarType: DollarType) => request<Settings>('/api/settings', put({ dollarType })),
   },
 
   reports: {

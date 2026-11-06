@@ -25,8 +25,9 @@ function reportOf(overrides: Partial<MonthlyReport> = {}): MonthlyReport {
       { name: 'Comida', type: 'Expense', total: 25000 },
       { name: 'Transporte', type: 'Expense', total: 5000 },
     ],
-    usdRateUsed: null,
+    pendingConversions: [],
     hasUnconvertedUsd: false,
+    previous: null,
     ...overrides,
   }
 }
@@ -180,9 +181,56 @@ describe('MonthlyReportView figures', () => {
     expect(screen.queryByText('Te queda')).not.toBeInTheDocument()
   })
 
-  it('says which rate converted the USD movements', async () => {
-    setup(reportOf({ usdRateUsed: 1570 }))
+  it('says which dollar was missing, and which rate stood in for it, when pending USD movements were converted', async () => {
+    setup(reportOf({ pendingConversions: [{ dollarType: 'Blue', rate: 1570 }] }))
 
-    expect(await screen.findByText(/se convirtieron a pesos con la cotización/)).toBeInTheDocument()
+    const note = await screen.findByText(/guardados con el dólar blue no tenían su cotización/)
+    expect(note).toHaveTextContent('se convirtieron con la de hoy')
+    expect(note.textContent).toMatch(/1\.570,00/)
+  })
+
+  it.each([
+    ['Official', 'oficial'],
+    ['Blue', 'blue'],
+    ['Mep', 'MEP'],
+  ] as const)('names the %s dollar in that note', async (dollarType, name) => {
+    setup(reportOf({ pendingConversions: [{ dollarType, rate: 1570 }] }))
+
+    expect(await screen.findByText(new RegExp(`guardados con el dólar ${name} no tenían su cotización`))).toBeInTheDocument()
+  })
+
+  it('has one note for each dollar that needed today\'s rate, since a month can mix dollars', async () => {
+    setup(reportOf({
+      pendingConversions: [{ dollarType: 'Official', rate: 1570 }, { dollarType: 'Blue', rate: 1555 }],
+    }))
+
+    expect(await screen.findByText(/dólar oficial no tenían su cotización/)).toBeInTheDocument()
+    expect(screen.getByText(/dólar blue no tenían su cotización/)).toBeInTheDocument()
+  })
+
+  it('says nothing about rates when none was missing', async () => {
+    setup(reportOf({ pendingConversions: [], hasUnconvertedUsd: false }))
+
+    await screen.findByLabelText('Gráfico')
+    expect(screen.queryByText(/no tenían su cotización/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/No se pudo obtener la cotización/)).not.toBeInTheDocument()
+  })
+
+  it('warns that some USD movements are left out of the totals, naming the dollar, when its rate is not available', async () => {
+    setup(reportOf({ hasUnconvertedUsd: true, pendingConversions: [{ dollarType: 'Mep', rate: null }] }))
+
+    const warning = await screen.findByText(/No se pudo obtener la cotización MEP/)
+    expect(warning).toHaveTextContent('algunos movimientos en USD no están sumados en estos totales')
+    expect(warning).toHaveAttribute('role', 'status')
+  })
+
+  it('can say both things at once: one dollar was converted with today\'s rate and another could not be', async () => {
+    setup(reportOf({
+      hasUnconvertedUsd: true,
+      pendingConversions: [{ dollarType: 'Blue', rate: 1555 }, { dollarType: 'Mep', rate: null }],
+    }))
+
+    expect(await screen.findByText(/dólar blue no tenían su cotización/)).toBeInTheDocument()
+    expect(screen.getByText(/No se pudo obtener la cotización MEP/)).toBeInTheDocument()
   })
 })

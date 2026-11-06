@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api.ts'
+import { compareWithPrevious } from '../comparison.ts'
+import type { Comparison } from '../comparison.ts'
 import { formatMoneyCompact } from '../format.ts'
 import { Skeleton, SkeletonGroup } from './Skeleton.tsx'
 
@@ -26,29 +28,49 @@ export default function MonthStats({ year, month }: { year: number; month: numbe
   if (!data) return null
 
   const stillHave = data.balance >= 0
+  const comparisons = compareWithPrevious(data, data.previous)
 
   return (
     // A figure is never cut in the middle: if the three do not fit in a row, the last one goes down to the next line
     <dl className="flex flex-wrap gap-x-6 gap-y-2">
-      <Figure label="Ingresos" value={formatMoneyCompact(data.income)} className="text-income" />
-      <Figure label="Gastos" value={formatMoneyCompact(data.expense)} className="text-expense" />
+      <Figure label="Ingresos" value={formatMoneyCompact(data.income)} className="text-income" comparison={comparisons.income} />
+      <Figure label="Gastos" value={formatMoneyCompact(data.expense)} className="text-expense" comparison={comparisons.expense} />
       <Figure
         label={stillHave ? 'Te queda' : 'Te pasaste'}
         value={formatMoneyCompact(Math.abs(data.balance))}
         // The result of the month is the one number that gets the highlighter and the ledger's double underline
         className="marker border-b-[3px] border-double border-ink font-bold"
+        comparison={comparisons.balance}
       />
     </dl>
   )
 }
 
-function Figure({ label, value, className }: { label: string; value: string; className: string }) {
+interface FigureProps {
+  label: string
+  value: string
+  className: string
+  /** How it compares with the month before, or null when there is nothing to compare. */
+  comparison: Comparison | null
+}
+
+function Figure({ label, value, className, comparison }: FigureProps) {
   return (
     <div className="flex flex-col gap-0.5">
       <dt className="muted text-[0.7rem] font-semibold tracking-wide uppercase">{label}</dt>
       <dd>
         <span className={`figure text-sm whitespace-nowrap sm:text-lg ${className}`}>{value}</span>
       </dd>
+      {comparison && (
+        <dd className="muted text-[0.7rem] leading-tight whitespace-nowrap">
+          {/* Short on a phone (the arrow and the amount), with the month from sm up; the whole sentence goes to screen readers */}
+          <span aria-hidden="true" title={comparison.sentence}>
+            {comparison.short}
+            <span className="hidden sm:inline"> vs. {comparison.month}</span>
+          </span>
+          <span className="sr-only">{comparison.sentence}</span>
+        </dd>
+      )}
     </div>
   )
 }

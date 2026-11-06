@@ -11,6 +11,7 @@ export function transaction(overrides: Partial<Transaction> = {}): Transaction {
     currency: 'ARS',
     exchangeRate: null,
     arsAmount: 1500,
+    dollarType: 'Official',
     date: '2026-11-05',
     note: 'almuerzo',
     categoryId: food.id,
