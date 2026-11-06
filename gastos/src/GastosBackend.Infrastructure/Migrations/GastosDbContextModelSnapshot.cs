@@ -68,6 +68,10 @@ namespace GastosBackend.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<decimal?>("BlueExchangeRate")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
                     b.Property<Guid>("CategoryId")
                         .HasColumnType("uuid");
 
@@ -83,12 +87,19 @@ namespace GastosBackend.Infrastructure.Migrations
                     b.Property<DateTimeOffset>("DeleteDate")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("DollarType")
+                        .HasColumnType("integer");
+
                     b.Property<decimal?>("ExchangeRate")
                         .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
+
+                    b.Property<decimal?>("MepExchangeRate")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
 
                     b.Property<string>("Note")
                         .HasMaxLength(200)
@@ -120,6 +131,9 @@ namespace GastosBackend.Infrastructure.Migrations
 
                     b.Property<DateTimeOffset>("DeleteDate")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DollarType")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Email")
                         .IsRequired()

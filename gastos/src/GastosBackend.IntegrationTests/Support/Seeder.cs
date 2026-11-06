@@ -53,7 +53,10 @@ public static class Seeder
         decimal? exchangeRate = null,
         string? note = null,
         bool deleted = false,
-        DateTimeOffset? createdDate = null)
+        DateTimeOffset? createdDate = null,
+        decimal? blueExchangeRate = null,
+        decimal? mepExchangeRate = null,
+        DollarType dollarType = DollarType.Official)
     {
         await using var context = database.CreateContext();
         var transaction = new Transaction
@@ -65,6 +68,9 @@ public static class Seeder
             Amount = amount,
             Currency = currency,
             ExchangeRate = exchangeRate,
+            BlueExchangeRate = blueExchangeRate,
+            MepExchangeRate = mepExchangeRate,
+            DollarType = dollarType,
             Note = note,
             CreatedDate = createdDate ?? DateTimeOffset.UtcNow,
             IsDeleted = deleted

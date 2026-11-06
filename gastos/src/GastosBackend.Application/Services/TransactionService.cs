@@ -13,15 +13,27 @@ namespace GastosBackend.Application.Services
         private readonly ITransactionRepository _transactionRepository;
         private readonly ICategoryRepository _categoryRepository;
         private readonly IDolarApiService _dolarApiService;
+        private readonly IUserRepository _userRepository;
 
         public TransactionService(
             ITransactionRepository transactionRepo,
             ICategoryRepository categoryRepo,
-            IDolarApiService dolarApiService)
+            IDolarApiService dolarApiService,
+            IUserRepository userRepo)
         {
             _transactionRepository = transactionRepo;
             _categoryRepository = categoryRepo;
             _dolarApiService = dolarApiService;
+            _userRepository = userRepo;
+        }
+
+        /// <summary>
+        /// The dollar the user has chosen for new USD transactions. An unknown user (which a valid token should not produce)
+        /// gets the official one instead of an error.
+        /// </summary>
+        private async Task<DollarType> GetDollarType(Guid userId)
+        {
+            return (await _userRepository.Get(userId))?.DollarType ?? DollarType.Official;
         }
 
         /// <summary>The most transactions one export can hold. More than that is refused instead of cut off silently.</summary>
@@ -125,7 +137,13 @@ namespace GastosBackend.Application.Services
             }
 
             var newTransaction = request.ToTransaction(category, userId);
-            newTransaction.ExchangeRate = await ResolveExchangeRate(request.Currency);
+            // The transaction stays with the dollar the user has chosen right now, whatever they choose later
+            if (request.Currency == Currency.USD)
+            {
+                newTransaction.DollarType = await GetDollarType(userId);
+            }
+
+            newTransaction.ApplyRates(await ResolveExchangeRates(request.Currency));
             await _transactionRepository.Add(newTransaction);
             return newTransaction.ToTransactionResponse();
         }
@@ -147,22 +165,27 @@ namespace GastosBackend.Application.Services
                 throw new ValidationException("La categoría indicada no existe.");
             }
 
-            // A new rate is only needed when what the rate applies to changed, or when a previous attempt failed.
-            var needsNewRate = request.Currency == Currency.USD
+            // New rates are only needed when what they apply to changed, or when a previous attempt failed (no rate of its dollar).
+            // A transaction recorded before the blue and MEP rates were stored keeps them empty: they are not made up now.
+            var needsNewRates = request.Currency == Currency.USD
                 && (transactionToUpdate.Currency != Currency.USD
                     || transactionToUpdate.Amount != request.Amount
                     || transactionToUpdate.Date != request.Date
-                    || transactionToUpdate.ExchangeRate == null);
+                    || transactionToUpdate.RateOf(transactionToUpdate.DollarType) == null);
 
             var updated = transactionToUpdate.ToTransactionUpdate(request);
 
             if (request.Currency == Currency.ARS)
             {
-                updated.ExchangeRate = null;
+                updated.ApplyRates(UsdRates.None);
+                updated.DollarType = DollarType.Official;
             }
-            else if (needsNewRate)
+            else if (needsNewRates)
             {
-                updated.ExchangeRate = await ResolveExchangeRate(request.Currency);
+                // Taking the rates again is saving again: it is done with the dollar the user has chosen now.
+                // An edit that does not need new rates (only the note, the category) leaves the dollar it had.
+                updated.DollarType = await GetDollarType(userId);
+                updated.ApplyRates(await ResolveExchangeRates(request.Currency));
             }
 
             await _transactionRepository.Update(updated);
@@ -181,23 +204,24 @@ namespace GastosBackend.Application.Services
         }
 
         /// <summary>
-        /// Current USD sell rate for USD transactions; null for ARS.
-        /// If the rate provider fails the transaction is still saved with a null rate, which the report resolves later.
+        /// Today's official, blue and MEP USD sell rates for a USD transaction; none for ARS.
+        /// If the rate provider fails the transaction is still saved with whatever was obtained (nothing, at worst),
+        /// and the report resolves the missing ones later.
         /// </summary>
-        private async Task<decimal?> ResolveExchangeRate(Currency currency)
+        private async Task<UsdRates> ResolveExchangeRates(Currency currency)
         {
             if (currency != Currency.USD)
             {
-                return null;
+                return UsdRates.None;
             }
 
             try
             {
-                return await _dolarApiService.GetUsdSellRate();
+                return await _dolarApiService.GetUsdSellRates();
             }
             catch (ExternalServiceException)
             {
-                return null;
+                return UsdRates.None;
             }
         }
 

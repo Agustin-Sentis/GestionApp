@@ -61,18 +61,32 @@ namespace GastosBackend.Infrastructure.Repository
         {
             return await _dbSet
                 .Where(t => t.UserId == userId && !t.IsDeleted && t.Date >= from && t.Date < toExclusive)
-                .GroupBy(t => new { t.Category!.Name, t.Category.Type, t.Currency })
+                .Select(t => new
+                {
+                    t.Category!.Name,
+                    t.Category.Type,
+                    t.Currency,
+                    t.Amount,
+                    // Only dollars have a dollar type: a movement in pesos must not split its category into several rows
+                    DollarType = t.Currency == Currency.USD ? t.DollarType : DollarType.Official,
+                    // Each transaction is converted with the rate of the dollar IT was saved with, whatever the user chose since
+                    Rate = t.DollarType == DollarType.Blue ? t.BlueExchangeRate
+                        : t.DollarType == DollarType.Mep ? t.MepExchangeRate
+                        : t.ExchangeRate
+                })
+                .GroupBy(t => new { t.Name, t.Type, t.Currency, t.DollarType })
                 .Select(g => new CategoryTotalRow
                 {
                     Name = g.Key.Name,
                     Type = g.Key.Type,
                     Currency = g.Key.Currency,
-                    // ARS as is; USD converted with the rate stored on each transaction.
+                    DollarType = g.Key.DollarType,
+                    // ARS as is; USD converted with the rate stored on each transaction (of its own dollar).
                     Total = g.Sum(t => t.Currency == Currency.ARS
                         ? t.Amount
-                        : (t.ExchangeRate != null ? t.Amount * t.ExchangeRate.Value : 0m)),
-                    // USD transactions that have no stored rate yet; the service converts them.
-                    PendingUsd = g.Sum(t => t.Currency == Currency.USD && t.ExchangeRate == null ? t.Amount : 0m)
+                        : (t.Rate != null ? t.Amount * t.Rate.Value : 0m)),
+                    // USD transactions that have no stored rate of their dollar yet; the service converts them.
+                    PendingUsd = g.Sum(t => t.Currency == Currency.USD && t.Rate == null ? t.Amount : 0m)
                 })
                 .ToListAsync();
         }

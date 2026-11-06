@@ -45,6 +45,8 @@ namespace GastosBackend.Infrastructure
             {
                 entity.Property(t => t.Amount).HasPrecision(18, 2);
                 entity.Property(t => t.ExchangeRate).HasPrecision(18, 4);
+                entity.Property(t => t.BlueExchangeRate).HasPrecision(18, 4);
+                entity.Property(t => t.MepExchangeRate).HasPrecision(18, 4);
                 entity.Property(t => t.Note).HasMaxLength(200);
 
                 entity.HasOne(t => t.Category)

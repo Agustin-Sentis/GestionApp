@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using GastosBackend.Application.dtos.Responses;
+using GastosBackend.Application.Mapper;
 using GastosBackend.Domain.Enums;
 
 namespace GastosBackend.Application.Exports
@@ -15,8 +16,12 @@ namespace GastosBackend.Application.Exports
         private const string NewLine = "\r\n";
 
         private static readonly string[] Header =
-            { "Fecha", "Tipo", "Categoría", "Nota", "Monto", "Moneda", "Cotización", "Monto en ARS" };
+            { "Fecha", "Tipo", "Categoría", "Nota", "Monto", "Moneda", "Dólar", "Cotización", "Monto en ARS" };
 
+        /// <summary>
+        /// Each USD row says which dollar its rate belongs to ("oficial", "blue" or "MEP"): a file can mix them, because
+        /// every transaction keeps the dollar it was saved with. A row in pesos has no dollar, so that cell is empty.
+        /// </summary>
         public static byte[] Build(IEnumerable<TransactionResponse> transactions)
         {
             var text = new StringBuilder();
@@ -32,6 +37,7 @@ namespace GastosBackend.Application.Exports
                     Text(t.Note),
                     Number(t.Amount, "0.00"),
                     t.Currency.ToString(),
+                    t.Currency == Currency.USD ? t.DollarType.Label() : string.Empty,
                     Number(t.ExchangeRate, "0.00##"),
                     Number(t.ArsAmount, "0.00")
                 };

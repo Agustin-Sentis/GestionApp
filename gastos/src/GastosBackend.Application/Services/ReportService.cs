@@ -7,6 +7,9 @@ namespace GastosBackend.Application.Services
 {
     public class ReportService : IReportService
     {
+        /// <summary>The first year the app accepts. The month before January of this year is not reported.</summary>
+        private const int FirstYear = 2000;
+
         private readonly ITransactionRepository _transactionRepository;
         private readonly IDolarApiService _dolarApiService;
 
@@ -18,7 +21,7 @@ namespace GastosBackend.Application.Services
 
         public async Task<MonthlyReportResponse> GetMonthly(int year, int month, Guid userId)
         {
-            if (month < 1 || month > 12 || year < 2000 || year > 2100)
+            if (month < 1 || month > 12 || year < FirstYear || year > 2100)
             {
                 throw new ValidationException("El año o el mes no son válidos.");
             }
@@ -26,25 +29,53 @@ namespace GastosBackend.Application.Services
             var from = new DateOnly(year, month, 1);
             var rows = await _transactionRepository.GetMonthlyTotals(userId, from, from.AddMonths(1));
 
-            // Row totals already come in ARS (USD converted with the rate stored on each transaction).
-            // The current rate is only requested for USD transactions that have no stored rate yet.
-            decimal? usdRate = null;
-            var hasUnconvertedUsd = false;
-            if (rows.Any(r => r.PendingUsd > 0))
+            // The month before, to compare against. January of the first year has none.
+            var previousFrom = from.AddMonths(-1);
+            var previousRows = previousFrom.Year >= FirstYear
+                ? await _transactionRepository.GetMonthlyTotals(userId, previousFrom, from)
+                : null;
+
+            // Row totals already come in ARS: each USD transaction was converted with the rate stored with it, of the dollar it
+            // was saved with. The current rate is only requested for the ones that have none yet, one request per dollar
+            // type, and only once even when both months need it.
+            var rates = new CurrentRates(_dolarApiService);
+
+            var current = await Summarize(rows, rates);
+            var income = current.ByCategory.Where(c => c.Type == TransactionType.Income).Sum(c => c.Total);
+            var expense = current.ByCategory.Where(c => c.Type == TransactionType.Expense).Sum(c => c.Total);
+
+            return new MonthlyReportResponse
             {
-                try
-                {
-                    usdRate = await _dolarApiService.GetUsdSellRate();
-                }
-                catch (ExternalServiceException)
-                {
-                    // Degrade instead of failing the whole report: leave those transactions out and flag it.
-                    hasUnconvertedUsd = true;
-                }
+                Year = year,
+                Month = month,
+                Currency = "ARS",
+                Income = income,
+                Expense = expense,
+                Balance = income - expense,
+                ByCategory = current.ByCategory,
+                PendingConversions = current.Pending,
+                HasUnconvertedUsd = current.Pending.Any(p => p.Rate == null),
+                Previous = previousRows == null ? null : await SummarizePreviousMonth(previousFrom, previousRows, rates)
+            };
+        }
+
+        /// <summary>The totals per category of a month, and which dollars needed today's rate to complete them.</summary>
+        private static async Task<(List<CategoryTotalResponse> ByCategory, List<PendingConversion> Pending)> Summarize(
+            List<CategoryTotalRow> rows, CurrentRates rates)
+        {
+            // Degrade instead of failing the whole report: a dollar whose rate is not available leaves its pending
+            // transactions out, and the report says so.
+            var pending = new List<PendingConversion>();
+            var rateOf = new Dictionary<DollarType, decimal?>();
+            foreach (var type in rows.Where(r => r.PendingUsd > 0).Select(r => r.DollarType).Distinct().OrderBy(t => t))
+            {
+                var rate = await rates.Get(type);
+                rateOf[type] = rate;
+                pending.Add(new PendingConversion { DollarType = type, Rate = rate });
             }
 
             decimal ToArs(CategoryTotalRow row) =>
-                row.Total + (usdRate is { } rate ? row.PendingUsd * rate : 0m);
+                row.Total + (row.PendingUsd > 0 && rateOf[row.DollarType] is { } rate ? row.PendingUsd * rate : 0m);
 
             var byCategory = rows
                 .GroupBy(r => new { r.Name, r.Type })
@@ -57,21 +88,57 @@ namespace GastosBackend.Application.Services
                 .OrderByDescending(c => c.Total)
                 .ToList();
 
-            var income = byCategory.Where(c => c.Type == TransactionType.Income).Sum(c => c.Total);
-            var expense = byCategory.Where(c => c.Type == TransactionType.Expense).Sum(c => c.Total);
+            return (byCategory, pending);
+        }
 
-            return new MonthlyReportResponse
+        private static async Task<PreviousMonthSummary> SummarizePreviousMonth(
+            DateOnly previousFrom, List<CategoryTotalRow> rows, CurrentRates rates)
+        {
+            // What it needed is not reported as "converted with today's rate": that note describes the month on screen
+            var summary = await Summarize(rows, rates);
+            var income = summary.ByCategory.Where(c => c.Type == TransactionType.Income).Sum(c => c.Total);
+            var expense = summary.ByCategory.Where(c => c.Type == TransactionType.Expense).Sum(c => c.Total);
+
+            return new PreviousMonthSummary
             {
-                Year = year,
-                Month = month,
-                Currency = "ARS",
+                Year = previousFrom.Year,
+                Month = previousFrom.Month,
                 Income = income,
                 Expense = expense,
                 Balance = income - expense,
-                ByCategory = byCategory,
-                UsdRateUsed = usdRate,
-                HasUnconvertedUsd = hasUnconvertedUsd
+                HasUnconvertedUsd = summary.Pending.Any(p => p.Rate == null)
             };
+        }
+
+        /// <summary>Asks for the current USD rate of each dollar type the first time it is needed and remembers the answer, failed or not.</summary>
+        private sealed class CurrentRates
+        {
+            private readonly IDolarApiService _service;
+            private readonly Dictionary<DollarType, decimal?> _answers = new();
+
+            public CurrentRates(IDolarApiService service)
+            {
+                _service = service;
+            }
+
+            public async Task<decimal?> Get(DollarType type)
+            {
+                if (!_answers.TryGetValue(type, out var rate))
+                {
+                    try
+                    {
+                        rate = await _service.GetUsdSellRate(type);
+                    }
+                    catch (ExternalServiceException)
+                    {
+                        rate = null;
+                    }
+
+                    _answers[type] = rate;
+                }
+
+                return rate;
+            }
         }
     }
 }

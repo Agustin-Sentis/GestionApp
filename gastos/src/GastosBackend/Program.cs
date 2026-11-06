@@ -56,6 +56,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
 builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddScoped<ISettingsService, SettingsService>();
 builder.Services.AddScoped<IPasswordHash, PasswordHash>();
 
 // External exchange rate API: named client + retry + circuit breaker + per-attempt timeout (Polly).
