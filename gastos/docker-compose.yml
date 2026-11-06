@@ -29,6 +29,8 @@ services:
       ConnectionStrings__GastosConnectionStrings: Host=db;Port=5432;Database=gastos;Username=gastos;Password=${DB_PASSWORD}
       Jwt__Key: ${JWT_KEY:?Definí JWT_KEY en el archivo .env (mínimo 32 caracteres)}
       Cors__AllowedOrigin: ${FRONTEND_URL:-http://localhost:5173}
+      # Scalar (/scalar) is off in production; this is a local setup, so keep it available
+      Docs__Enabled: "true"
     ports:
       - "8080:8080"
 

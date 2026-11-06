@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { saveSession } from '../api.ts'
 import { downloadBlob } from '../download.ts'
+import { anyBlob } from '../test/blob.ts'
 import { mockApi } from '../test/fetchMock.ts'
 import { food, pageOf, salary, transaction } from '../test/fixtures.ts'
 import { renderWithProviders } from '../test/render.tsx'
@@ -262,7 +263,7 @@ describe('TransactionList CSV export', () => {
     expect(Object.fromEntries(calls[0].url.searchParams)).toEqual({
       year: '2026', month: '3', type: 'Expense', search: 'cena',
     })
-    expect(downloadBlob).toHaveBeenCalledWith(expect.any(Blob), 'movimientos-2026-03.csv')
+    expect(downloadBlob).toHaveBeenCalledWith(anyBlob(), 'movimientos-2026-03.csv')
   })
 
   it('names the file without a month when the list uses a date range', async () => {
@@ -273,7 +274,7 @@ describe('TransactionList CSV export', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Exportar CSV' }))
 
-    await waitFor(() => expect(downloadBlob).toHaveBeenCalledWith(expect.any(Blob), 'movimientos.csv'))
+    await waitFor(() => expect(downloadBlob).toHaveBeenCalledWith(anyBlob(), 'movimientos.csv'))
     expect(calls[0].url.searchParams.get('from')).toBe('2026-03-01')
     expect(calls[0].url.searchParams.get('to')).toBe('2026-03-15')
   })

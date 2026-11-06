@@ -6,6 +6,7 @@ import {
   saveSession,
   setUnauthorizedHandler,
 } from './api.ts'
+import { isBlob } from './test/blob.ts'
 import { headersOf, mockFetch, mockFetchNetworkError } from './test/fetchMock.ts'
 
 const inOneHour = () => new Date(Date.now() + 60 * 60 * 1000).toISOString()
@@ -109,7 +110,7 @@ describe('requests', () => {
       year: '2026', month: '11', categoryId: 'c1', type: 'Expense', search: 'cena',
     })
     expect(headersOf(init)['authorization']).toBe('Bearer jwt-token')
-    expect(file).toBeInstanceOf(Blob)
+    expect(isBlob(file)).toBe(true)
   })
 
   it('raises the error of the server when the export is refused', async () => {

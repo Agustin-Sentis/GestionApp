@@ -5,6 +5,7 @@ classDiagram
         <<abstract>>
         +Guid Id
         +bool IsDeleted
+        +DateTimeOffset CreatedDate
         +DateTimeOffset UpdateDate
         +DateTimeOffset DeleteDate
     }
@@ -23,6 +24,7 @@ classDiagram
     class Transaction {
         +decimal Amount
         +Currency Currency
+        +decimal ExchangeRate
         +DateOnly Date
         +string Note
         +Guid CategoryId
