@@ -89,9 +89,9 @@ export default function TransactionList({ onEdit, editingId = null, onDeleted }:
 
   return (
     <section className="card">
-      <h2 className="font-semibold">Movimientos</h2>
+      <h2 className="panel-title">Libro de movimientos</h2>
 
-      <div className="flex flex-wrap items-end gap-2">
+      <div className="grid grid-cols-2 items-end gap-x-3 gap-y-2">
         <label className="field">
           Categoría
           <select
@@ -126,7 +126,7 @@ export default function TransactionList({ onEdit, editingId = null, onDeleted }:
           </select>
         </label>
 
-        <label className="field">
+        <label className="field col-span-2">
           Buscar en la nota
           <input
             className="input"
@@ -168,7 +168,7 @@ export default function TransactionList({ onEdit, editingId = null, onDeleted }:
 
         <button
           type="button"
-          className="btn ml-auto"
+          className="btn justify-self-end"
           onClick={() => exportCsv.mutate()}
           disabled={exportCsv.isPending || rangeInverted || !data || data.total === 0}
         >
@@ -216,7 +216,7 @@ export default function TransactionList({ onEdit, editingId = null, onDeleted }:
           <div className="overflow-x-auto" aria-busy={isPlaceholderData}>
             <table className={`w-full border-collapse text-sm ${isPlaceholderData ? 'opacity-60' : ''}`}>
               <thead>
-                <tr className="muted text-left text-xs">
+                <tr className="muted text-left text-[0.7rem] tracking-wide uppercase">
                   <th className="p-2 font-semibold">Fecha</th>
                   <th className="p-2 font-semibold">Categoría</th>
                   <th className="p-2 font-semibold">Nota</th>
@@ -229,15 +229,16 @@ export default function TransactionList({ onEdit, editingId = null, onDeleted }:
                   <tr
                     key={t.id}
                     aria-current={t.id === editingId ? 'true' : undefined}
-                    className={`border-t border-slate-200 dark:border-slate-800 ${
-                      t.id === editingId ? 'bg-teal-50 dark:bg-teal-950/40' : ''
+                    className={`border-t border-line ${t.id === editingId ? 'bg-mark/25' : ''} ${
+                      // Being deleted: crossed out with the pen until the list answers
+                      remove.isPending && remove.variables === t.id ? 'struck' : ''
                     }`}
                   >
                     <td className="p-2">{formatDate(t.date)}</td>
                     <td className="p-2">{t.categoryName}</td>
                     <td className="muted p-2">{t.note ?? '—'}</td>
-                    <td className="p-2 text-right whitespace-nowrap tabular-nums">
-                      <div className={t.type === EXPENSE ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400'}>
+                    <td className="figure p-2 text-right text-xs whitespace-nowrap">
+                      <div className={t.type === EXPENSE ? 'text-expense' : 'text-income'}>
                         {t.type === EXPENSE ? '−' : '+'}
                         {formatMoney(t.amount, t.currency)}
                       </div>

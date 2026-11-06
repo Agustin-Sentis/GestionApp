@@ -54,7 +54,7 @@ export default function ConfirmDelete({ label, onConfirm, pending = false }: Pro
       <span className="muted">¿Eliminar?</span>
       <button
         type="button"
-        className="cursor-pointer font-semibold text-red-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400"
+        className="cursor-pointer font-bold text-expense underline decoration-2 underline-offset-4 hover:bg-expense hover:text-sheet disabled:cursor-not-allowed disabled:opacity-50"
         disabled={pending}
         onClick={() => {
           setAsking(false)

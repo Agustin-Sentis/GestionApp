@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { addMonths, currentMonthValue, defaultDateForMonth, formatDate, formatMoney, formatMonth, parseMonthValue, todayLocal } from './format.ts'
+import { addMonths, currentMonthValue, defaultDateForMonth, formatDate, formatMoney, formatMoneyCompact, formatMonth, parseMonthValue, todayLocal } from './format.ts'
 
 // Intl separates the symbol from the number with a non-breaking space: compare with a normal one
 const plain = (text: string) => text.replace(/ /g, ' ')
@@ -15,6 +15,30 @@ describe('formatMoney', () => {
 
   it('keeps the sign of a negative balance', () => {
     expect(plain(formatMoney(-500))).toMatch(/^-\s?\$\s?500,00$/)
+  })
+})
+
+describe('formatMoneyCompact', () => {
+  it('leaves out the cents of whole pesos', () => {
+    expect(plain(formatMoneyCompact(2693000))).toBe('$ 2.693.000')
+    expect(plain(formatMoneyCompact(0))).toBe('$ 0')
+  })
+
+  it('keeps the cents when there are any, always with two digits', () => {
+    expect(plain(formatMoneyCompact(1234.5))).toBe('$ 1.234,50')
+    expect(plain(formatMoneyCompact(0.05))).toBe('$ 0,05')
+  })
+
+  it('handles dollars and negative amounts', () => {
+    expect(plain(formatMoneyCompact(10, 'USD'))).toBe('US$ 10')
+    expect(plain(formatMoneyCompact(-500))).toMatch(/^-\s?\$\s?500$/)
+  })
+
+  it('agrees with formatMoney on the digits it does show', () => {
+    for (const amount of [1, 99.99, 1000000, 1234567.89]) {
+      const compact = plain(formatMoneyCompact(amount))
+      expect(plain(formatMoney(amount))).toContain(compact)
+    }
   })
 })
 

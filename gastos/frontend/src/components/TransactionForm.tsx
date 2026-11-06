@@ -104,7 +104,7 @@ export default function TransactionForm({ editing = null, onFinishEditing }: Pro
         if (editing && e.key === 'Escape') onFinishEditing?.()
       }}
     >
-      <h2 className="font-semibold">{editing ? 'Editar movimiento' : 'Nuevo movimiento'}</h2>
+      <h2 className="panel-title">{editing ? 'Editar movimiento' : 'Nuevo movimiento'}</h2>
 
       {categories.length === 0 && (
         <p className="muted text-sm">Primero creá al menos una categoría (más abajo).</p>

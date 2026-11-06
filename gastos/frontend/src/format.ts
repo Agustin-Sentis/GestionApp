@@ -2,6 +2,25 @@ export function formatMoney(amount: number, currency = 'ARS'): string {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency }).format(amount)
 }
 
+/**
+ * Like formatMoney, but without the ",00" when the amount is whole pesos: "$ 2.693.000" instead of "$ 2.693.000,00".
+ * For the figures of a header, where room is tight. An amount with cents keeps them, so nothing is rounded away.
+ */
+export function formatMoneyCompact(amount: number, currency = 'ARS'): string {
+  const whole = Number.isInteger(amount)
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(amount)
+}
+
+/** 45.678 → "45,7%"; 100 → "100%". Un decimal como máximo, con la coma del español. */
+export function formatPercent(percent: number): string {
+  return `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(percent)}%`
+}
+
 /** Fecha de hoy en hora local (toISOString devolvería la fecha UTC y se corre de día de noche). */
 export function todayLocal(): string {
   const d = new Date()

@@ -3,22 +3,27 @@ import type { ReactNode } from 'react'
 import { useAuth } from './auth.tsx'
 import AuthPage from './pages/AuthPage.tsx'
 import DashboardPage from './pages/DashboardPage.tsx'
-
-function RequireAuth({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth()
-  return isAuthenticated ? children : <Navigate to="/login" replace />
-}
+import LandingPage from './pages/LandingPage.tsx'
 
 function PublicOnly({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
   return isAuthenticated ? <Navigate to="/" replace /> : children
 }
 
+/**
+ * The same address shows two things: the landing page to someone who has not signed in, and their dashboard once they have.
+ * That way existing links to the dashboard (with ?mes=…) keep working, and signing in needs no redirect.
+ */
+function Home() {
+  const { isAuthenticated } = useAuth()
+  return isAuthenticated ? <DashboardPage /> : <LandingPage />
+}
+
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<PublicOnly><AuthPage /></PublicOnly>} />
-      <Route path="/" element={<RequireAuth><DashboardPage /></RequireAuth>} />
+      <Route path="/" element={<Home />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

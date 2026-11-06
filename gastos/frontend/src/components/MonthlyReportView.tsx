@@ -1,29 +1,38 @@
 import { useQuery } from '@tanstack/react-query'
-import { lazy, Suspense } from 'react'
-import { api, EXPENSE, INCOME } from '../api.ts'
+import { lazy, Suspense, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { api } from '../api.ts'
+import { buildChartView, categoryOrder, CHART_KINDS, defaultChartKind, isChartKind } from '../chartData.ts'
+import type { ChartKind } from '../chartData.ts'
 import { formatMoney } from '../format.ts'
+import BreakdownTable from './BreakdownTable.tsx'
 import { Skeleton, SkeletonGroup } from './Skeleton.tsx'
 
 // The chart library is heavy: it is downloaded the first time a chart is needed, not with the rest of the app
-const ExpensePieChart = lazy(() => import('./ExpensePieChart.tsx'))
+const ReportChart = lazy(() => import('./ReportChart.tsx'))
+
+/** The URL parameter that remembers which chart is open, so a reload or a shared link shows the same one. */
+const CHART_PARAM = 'grafico'
 
 export default function MonthlyReportView({ year, month }: { year: number; month: number }) {
+  const [params, setParams] = useSearchParams()
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['report', year, month],
     queryFn: () => api.reports.monthly(year, month),
   })
 
+  // The same query the rest of the page uses. A category keeps its color in every chart because the color comes from its place here
+  const { data: categories } = useQuery({ queryKey: ['categories'], queryFn: api.categories.list })
+  const order = useMemo(() => categoryOrder(categories ?? []), [categories])
+
   if (isLoading) {
     return (
       <section className="card">
-        <h2 className="font-semibold">Resumen del mes</h2>
+        <h2 className="panel-title">Resumen del mes</h2>
         <SkeletonGroup label="Cargando el resumen…" className="flex flex-col gap-3">
-          {/* Same shape as the loaded card: three figures and the chart */}
-          <div className="grid grid-cols-3 gap-2">
-            <Skeleton className="h-[4.5rem]" />
-            <Skeleton className="h-[4.5rem]" />
-            <Skeleton className="h-[4.5rem]" />
-          </div>
+          {/* Same shape as the loaded card: the chooser and the chart */}
+          <Skeleton className="h-10 w-48" />
           <Skeleton className="h-[17.5rem]" />
         </SkeletonGroup>
       </section>
@@ -37,18 +46,25 @@ export default function MonthlyReportView({ year, month }: { year: number; month
     )
   }
 
-  const expenses = data.byCategory.filter((c) => c.type === EXPENSE && c.total > 0)
-  const hasIncome = data.byCategory.some((c) => c.type === INCOME)
+  // What the user picked, if it is a chart that exists. Otherwise the one that tells the most about this month
+  const requested = params.get(CHART_PARAM)
+  const kind: ChartKind = isChartKind(requested) ? requested : defaultChartKind(data)
+  const view = buildChartView(kind, data, order)
+
+  function chooseKind(next: ChartKind) {
+    setParams(
+      (previous) => {
+        const updated = new URLSearchParams(previous)
+        updated.set(CHART_PARAM, next)
+        return updated
+      },
+      { replace: true },
+    )
+  }
 
   return (
     <section className="card">
-      <h2 className="font-semibold">Resumen del mes</h2>
-
-      <div className="grid grid-cols-3 gap-2">
-        <Stat label="Ingresos" value={formatMoney(data.income)} tone="income" />
-        <Stat label="Gastos" value={formatMoney(data.expense)} tone="expense" />
-        <Stat label="Balance" value={formatMoney(data.balance)} tone={data.balance >= 0 ? 'income' : 'expense'} />
-      </div>
+      <h2 className="panel-title">Resumen del mes</h2>
 
       {data.usdRateUsed !== null && (
         <p className="muted text-sm">
@@ -56,31 +72,34 @@ export default function MonthlyReportView({ year, month }: { year: number; month
         </p>
       )}
 
-      {expenses.length === 0 ? (
-        <p className="muted">
-          {hasIncome ? 'No hay gastos cargados en este mes.' : 'Todavía no hay movimientos cargados en este mes.'}
-        </p>
+      <label className="field self-start">
+        Gráfico
+        <select className="input pr-6" value={kind} onChange={(e) => chooseKind(e.target.value as ChartKind)}>
+          {CHART_KINDS.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+      </label>
+
+      {view.shape === 'empty' ? (
+        <p className="muted">{view.message}</p>
       ) : (
-        <Suspense
-          fallback={
-            <SkeletonGroup label="Cargando el gráfico…">
-              <Skeleton className="h-[17.5rem]" />
-            </SkeletonGroup>
-          }
-        >
-          <ExpensePieChart expenses={expenses} />
-        </Suspense>
+        <>
+          {view.note && <p className="muted text-sm">{view.note}</p>}
+          <Suspense
+            fallback={
+              <SkeletonGroup label="Cargando el gráfico…">
+                <Skeleton className="h-[17.5rem]" />
+              </SkeletonGroup>
+            }
+          >
+            <ReportChart view={view} />
+          </Suspense>
+          <div className="overflow-x-auto">
+            <BreakdownTable slices={view.slices} percentLabel={view.percentLabel} />
+          </div>
+        </>
       )}
     </section>
-  )
-}
-
-function Stat({ label, value, tone }: { label: string; value: string; tone: 'income' | 'expense' }) {
-  const color = tone === 'income' ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
-  return (
-    <div className="flex min-w-0 flex-col rounded-lg border border-slate-200 p-3 dark:border-slate-800">
-      <span className="muted text-sm">{label}</span>
-      <strong className={`wrap-anywhere text-lg ${color}`}>{value}</strong>
-    </div>
   )
 }

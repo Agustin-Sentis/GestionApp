@@ -1,9 +1,75 @@
 @import "tailwindcss";
+@import "@fontsource-variable/archivo/wdth.css";
+@import "@fontsource-variable/martian-mono/wght.css";
+@import "@fontsource-variable/shantell-sans/wght.css";
 
 /* El modo oscuro lo decide la clase "dark" de <html> (la pone theme.ts), no solo el sistema: así el selector manual manda. */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * IDENTIDAD: el cuaderno de cuentas.
+ *   Claro  = hoja cuadriculada: tinta de birome azul, margen rojo, resaltador amarillo.
+ *   Oscuro = pizarrón verde del colegio: tiza azul, tiza roja, tiza amarilla.
+ * Los colores viven en variables (abajo) y Tailwind las usa por nombre (bg-paper, text-ink, border-line...),
+ * así un componente no tiene que repetir una variante dark: para cada color.
+ */
+:root {
+  --paper: #f3f6fa; /* la hoja */
+  --sheet: #ffffff; /* un papel apoyado sobre la hoja: paneles, tarjetas */
+  --grid: #dce6f1; /* la cuadrícula */
+  --line: #c3d1e0; /* renglones y bordes */
+  --ink: #22262e; /* texto */
+  --ink-soft: #5b6472; /* texto secundario */
+  --pen: #1b3fab; /* birome azul: acciones e ingresos */
+  --pen-strong: #142f85;
+  --on-pen: #ffffff;
+  --margin: #dc4a3f; /* el margen rojo de la hoja (decorativo) */
+  --expense: #be3329; /* gastos: el rojo del libro contable, apto para texto */
+  --income: #1b3fab;
+  --mark: #ffe14d; /* resaltador */
+  --on-mark: #22262e;
+}
+
+.dark {
+  --paper: #14231c;
+  --sheet: #1a2d24;
+  --grid: #1c3027;
+  --line: #34513f;
+  --ink: #edf2e8; /* tiza */
+  --ink-soft: #a9bbaf;
+  --pen: #8fb7ff; /* tiza azul */
+  --pen-strong: #b5d0ff;
+  --on-pen: #0f1a14;
+  --margin: #ff8a7a;
+  --expense: #ff8a7a;
+  --income: #8fb7ff;
+  --mark: #f2d95c; /* tiza amarilla */
+  --on-mark: #14231c;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-sheet: var(--sheet);
+  --color-grid: var(--grid);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-pen: var(--pen);
+  --color-pen-strong: var(--pen-strong);
+  --color-on-pen: var(--on-pen);
+  --color-margin: var(--margin);
+  --color-expense: var(--expense);
+  --color-income: var(--income);
+  --color-mark: var(--mark);
+  --color-on-mark: var(--on-mark);
+}
+
 @theme {
+  /* Títulos: Archivo en su ancho máximo y negrita. Texto: Archivo normal. Cifras: Martian Mono. Anotaciones al margen: Shantell Sans */
+  --font-sans: "Archivo Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Martian Mono Variable", ui-monospace, "Cascadia Mono", monospace;
+  --font-hand: "Shantell Sans Variable", "Segoe Print", "Bradley Hand", cursive;
+
   /* Entrada de los avisos (se usa como motion-safe:animate-toast-in: se omite si el usuario pidió menos movimiento) */
   --animate-toast-in: toast-in 0.18s ease-out;
 
@@ -19,47 +85,206 @@
   }
 }
 
+/*
+ * Colores de los gráficos. La paleta categórica (--series-1 a 8) es la validada con el script de la guía de visualización:
+ * pasa banda de luminosidad, croma, separación para daltonismo y piso de visión normal, en claro contra #ffffff y en
+ * oscuro contra #1a2d24 (la superficie real de los paneles). El ORDEN es parte de la validación: no se reordena ni se
+ * agregan tonos (el noveno se pliega en "Otras"). En claro, aqua, amarillo y magenta quedan bajo 3:1: por eso cada gráfico
+ * lleva su tabla de detalle con los valores.
+ */
+:root {
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #6250d6;
+  --series-8: #e34948;
+  --chart-rest: #898781; /* lo que sobra ("Sin gastar") */
+  --chart-other: #64635e; /* la cola plegada ("Otras") */
+  --chart-surface: var(--sheet); /* separa los sectores con un hueco del color del panel */
+  --chart-text: var(--ink-soft);
+  --chart-axis: var(--line);
+  --chart-hover: rgb(34 38 46 / 0.06);
+}
+
+.dark {
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+  --series-7: #9085e9;
+  --series-8: #e66767;
+  --chart-other: #c3c2b7;
+  --chart-hover: rgb(237 242 232 / 0.08);
+}
+
 @layer base {
+  html {
+    /* Nada de la página puede ser más ancho que la pantalla */
+    overflow-x: clip;
+  }
+
   body {
-    @apply bg-slate-100 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+    @apply bg-paper font-sans text-ink antialiased;
+    /* La cuadrícula del cuaderno: cuadrados de 24px, finos y apagados para que el contenido mande */
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--pen);
+    outline-offset: 2px;
+  }
+
+  input[type="checkbox"] {
+    accent-color: var(--pen);
+  }
+
+  /*
+   * La lista que se abre al tocar un desplegable la dibuja el navegador, y a las opciones les pone su propio fondo
+   * (blanco) si no tienen uno: con el texto de tiza del pizarrón quedaba blanco sobre blanco. Se les da el color del
+   * papel y de la tinta del tema. El marcador "Elegí…" y los títulos de grupo van en gris suave.
+   */
+  select option,
+  select optgroup {
+    background-color: var(--sheet);
+    color: var(--ink);
+  }
+
+  select option:disabled {
+    color: var(--ink-soft);
   }
 }
 
 /* Piezas repetidas en toda la app. El resto del estilo va con utilidades de Tailwind en el JSX. */
 @layer components {
+  /* Un papel apoyado sobre la hoja */
   .card {
-    @apply flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900;
+    @apply flex flex-col gap-3 rounded-md border border-line bg-sheet p-4;
+  }
+
+  /* Título de un panel: ancho, pesado, y la doble raya que usan los libros contables bajo un encabezado */
+  .display {
+    @apply font-extrabold tracking-tight;
+    font-stretch: 125%;
+    line-height: 1.05;
+  }
+
+  .panel-title {
+    @apply text-sm font-extrabold uppercase;
+    font-stretch: 125%;
+    line-height: 1.05;
+    letter-spacing: 0.06em;
+    border-bottom: 3px double var(--ink);
+    padding-bottom: 0.4rem;
+  }
+
+  /* Cifras: monoespaciadas, para que los montos se alineen como en una columna de libro */
+  .figure {
+    @apply font-mono tabular-nums;
+    letter-spacing: -0.04em;
+  }
+
+  /* Anotación a mano al margen: se usa poco, solo donde habla "la persona" y no la interfaz */
+  .hand {
+    @apply font-hand text-pen;
+  }
+
+  /* El resaltador: un trazo amarillo detrás del texto, no una caja */
+  .marker {
+    background: linear-gradient(transparent 12%, var(--mark) 12% 92%, transparent 92%) no-repeat;
+    background-size: 100% 100%;
+    color: var(--on-mark);
+    padding: 0 0.25em;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
   }
 
   .field {
-    @apply flex flex-col gap-1 text-sm text-slate-500 dark:text-slate-400;
+    @apply flex flex-col gap-1 text-xs font-semibold tracking-wide text-ink-soft uppercase;
   }
 
+  /* Un campo es un renglón donde escribir: solo la línea de abajo */
   .input {
-    @apply min-w-0 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 focus-visible:outline-2 focus-visible:outline-teal-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus-visible:outline-teal-400;
+    @apply min-w-0 rounded-none border-0 border-b-2 border-line bg-transparent px-1 py-2 text-base font-normal tracking-normal text-ink normal-case focus-visible:border-pen focus-visible:outline-0;
+  }
+
+  .input::placeholder {
+    @apply text-ink-soft/70;
   }
 
   .btn {
-    @apply cursor-pointer rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm hover:border-teal-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-teal-400;
+    @apply cursor-pointer rounded-sm border-2 border-ink bg-transparent px-3.5 py-1.5 text-sm font-semibold text-ink hover:bg-mark hover:text-on-mark disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-ink;
   }
 
   .btn-primary {
-    @apply cursor-pointer rounded-lg border border-teal-700 bg-teal-700 px-3.5 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50 dark:border-teal-400 dark:bg-teal-400 dark:text-slate-950 dark:hover:bg-teal-300;
+    @apply cursor-pointer rounded-sm border-2 border-pen bg-pen px-3.5 py-1.5 text-sm font-bold text-on-pen hover:border-pen-strong hover:bg-pen-strong disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-link {
-    @apply cursor-pointer p-1 text-sm text-teal-700 hover:underline dark:text-teal-400;
+    @apply cursor-pointer p-1 text-sm font-semibold text-pen underline decoration-2 underline-offset-4 hover:bg-mark hover:text-on-mark;
   }
 
   .btn-icon {
-    @apply cursor-pointer px-1.5 leading-none text-slate-400 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply cursor-pointer px-1.5 leading-none text-ink-soft hover:text-expense disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .error-text {
-    @apply text-sm text-red-600 dark:text-red-400;
+    @apply text-sm font-semibold text-expense;
   }
 
   .muted {
-    @apply text-slate-500 dark:text-slate-400;
+    @apply text-ink-soft;
+  }
+
+  /* Un movimiento que se está eliminando se tacha, como en el cuaderno */
+  .struck {
+    text-decoration: line-through;
+    text-decoration-color: var(--expense);
+    text-decoration-thickness: 2px;
+    opacity: 0.55;
+  }
+}
+
+/*
+ * El único momento animado de la página de inicio: las líneas de la hoja de ejemplo se "escriben" una tras otra y,
+ * al final, el resaltador pasa sobre el resultado. Solo si la persona no pidió menos movimiento: si pidió, todo
+ * aparece ya terminado.
+ */
+@keyframes write-in {
+  from {
+    opacity: 0;
+    transform: translateX(-0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes paint-in {
+  from {
+    background-size: 0% 100%;
+  }
+  to {
+    background-size: 100% 100%;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .write-in {
+    animation: write-in 0.45s ease-out both;
+    animation-delay: var(--delay, 0s);
+  }
+
+  .paint-in {
+    animation: paint-in 0.7s ease-out both;
+    animation-delay: var(--delay, 0.6s);
   }
 }
