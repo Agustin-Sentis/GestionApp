@@ -39,8 +39,8 @@ export default class ErrorBoundary extends Component<Props, State> {
       <main className="grid min-h-screen place-items-center p-4">
         <div className="card w-full max-w-sm gap-4 p-6" role="alert">
           <div>
-            <h1 className="text-xl font-semibold">Algo salió mal</h1>
-            <p className="muted mt-1 text-sm">
+            <h1 className="panel-title">Algo salió mal</h1>
+            <p className="muted mt-3 text-sm">
               La página tuvo un error inesperado. Lo que ya guardaste no se pierde: recargá para volver a intentarlo.
             </p>
           </div>

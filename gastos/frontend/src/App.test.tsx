@@ -1,0 +1,65 @@
+import { screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { saveSession } from './api.ts'
+import App from './App.tsx'
+import { mockApi } from './test/fetchMock.ts'
+import { food, pageOf } from './test/fixtures.ts'
+import { renderWithProviders } from './test/render.tsx'
+
+// The chart library draws nothing useful in jsdom (it has no size)
+vi.mock('./components/ReportChart.tsx', () => ({ default: () => <div data-testid="chart" /> }))
+
+function signedIn() {
+  saveSession({ token: 'jwt', expiresAtUtc: new Date(Date.now() + 3_600_000).toISOString() })
+}
+
+function mockDashboardApi() {
+  mockApi({
+    'GET /api/category': () => ({ body: [food] }),
+    'GET /api/report/monthly': () => ({
+      body: { year: 2026, month: 11, currency: 'ARS', income: 0, expense: 0, balance: 0, byCategory: [], usdRateUsed: null, hasUnconvertedUsd: false },
+    }),
+    'GET /api/transaction/paged': () => ({ body: pageOf([]) }),
+  })
+}
+
+describe('App routes', () => {
+  it('shows the landing page at the root to someone who has not signed in', () => {
+    renderWithProviders(<App />, { route: '/' })
+
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Anotá lo que gastás.')
+    expect(screen.queryByRole('button', { name: 'Salir' })).not.toBeInTheDocument()
+  })
+
+  it('shows the dashboard at the same address once signed in', async () => {
+    signedIn()
+    mockDashboardApi()
+
+    renderWithProviders(<App />, { route: '/?mes=2026-11' })
+
+    expect(await screen.findByRole('button', { name: 'Salir' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Mes a visualizar')).toHaveValue('2026-11') // an old link with ?mes= still works
+    expect(screen.queryByText('Anotá lo que gastás.')).not.toBeInTheDocument()
+  })
+
+  it('shows the sign-in form at /login', () => {
+    renderWithProviders(<App />, { route: '/login' })
+
+    expect(screen.getByText('Ingresá a tu cuenta')).toBeInTheDocument()
+  })
+
+  it('sends someone who is already signed in from /login to the dashboard', async () => {
+    signedIn()
+    mockDashboardApi()
+
+    renderWithProviders(<App />, { route: '/login' })
+
+    expect(await screen.findByRole('button', { name: 'Salir' })).toBeInTheDocument()
+  })
+
+  it('sends an address that does not exist to the root', () => {
+    renderWithProviders(<App />, { route: '/no-existe' })
+
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Anotá lo que gastás.')
+  })
+})

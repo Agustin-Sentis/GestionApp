@@ -20,9 +20,9 @@ const ACTION_DURATION_MS = 8000
 const MAX_VISIBLE = 4
 
 const TONE_STYLES: Record<ToastTone, string> = {
-  success: 'border-l-teal-600 dark:border-l-teal-400',
-  error: 'border-l-red-600 dark:border-l-red-400',
-  info: 'border-l-slate-400 dark:border-l-slate-500',
+  success: 'border-l-pen',
+  error: 'border-l-expense',
+  info: 'border-l-ink-soft',
 }
 
 export default function ToastProvider({ children }: { children: ReactNode }) {
@@ -79,7 +79,7 @@ export default function ToastProvider({ children }: { children: ReactNode }) {
             key={toast.id}
             // An error interrupts a screen reader; the rest wait for a pause
             role={toast.tone === 'error' ? 'alert' : 'status'}
-            className={`pointer-events-auto motion-safe:animate-toast-in flex items-start gap-3 rounded-lg border border-l-4 border-slate-200 bg-white py-3 pr-2 pl-4 text-sm shadow-lg dark:border-slate-800 dark:bg-slate-900 ${TONE_STYLES[toast.tone]}`}
+            className={`pointer-events-auto motion-safe:animate-toast-in flex items-start gap-3 rounded-sm border-2 border-l-8 border-ink bg-sheet py-3 pr-2 pl-4 text-sm font-medium text-ink ${TONE_STYLES[toast.tone]}`}
           >
             <p className="min-w-0 flex-1 wrap-anywhere">{toast.message}</p>
             {toast.action && (

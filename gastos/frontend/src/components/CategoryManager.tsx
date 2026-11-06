@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, EXPENSE, INCOME } from '../api.ts'
 import type { TransactionType } from '../api.ts'
+import { categoryOrder, colorOf } from '../chartData.ts'
 import ConfirmDelete from './ConfirmDelete.tsx'
 import { Skeleton, SkeletonGroup } from './Skeleton.tsx'
 import { useToast } from './toastContext.ts'
@@ -14,6 +15,8 @@ export default function CategoryManager() {
     queryKey: ['categories'],
     queryFn: api.categories.list,
   })
+
+  const order = categoryOrder(categories)
 
   const [name, setName] = useState('')
   const [type, setType] = useState<TransactionType>(EXPENSE)
@@ -45,10 +48,11 @@ export default function CategoryManager() {
 
   return (
     <section className="card">
-      <h2 className="font-semibold">Categorías</h2>
+      <h2 className="panel-title">Categorías</h2>
 
-      <form className="flex items-end gap-2" onSubmit={onSubmit}>
-        <label className="field flex-1">
+      {/* The name takes a whole row; the type and the button share the one below. Three things in a row do not fit in a narrow panel. */}
+      <form className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-3 gap-y-2" onSubmit={onSubmit}>
+        <label className="field col-span-2">
           Nombre
           <input
             className="input"
@@ -81,15 +85,19 @@ export default function CategoryManager() {
       {!isLoading && categories.length === 0 && <p className="muted">Todavía no tenés categorías.</p>}
 
       <ul className="flex flex-wrap gap-2">
-        {categories.map((c) => (
+        {categories.map((c, index) => (
           <li
             key={c.id}
-            className={`inline-flex items-center gap-1 rounded-full border py-1 pr-1.5 pl-3 text-sm ${
-              c.type === EXPENSE
-                ? 'border-red-300 dark:border-red-900'
-                : 'border-green-300 dark:border-green-900'
+            // The border says the type (red: expense, blue: income); the square is the color of the category in the charts
+            className={`inline-flex items-center gap-2 rounded-sm border-2 py-1 pr-1.5 pl-2 text-sm font-medium ${
+              c.type === EXPENSE ? 'border-expense' : 'border-income'
             }`}
           >
+            <span
+              aria-hidden="true"
+              className="size-3 shrink-0 rounded-sm"
+              style={{ backgroundColor: colorOf(c.name, order, index) }}
+            />
             <span>{c.name}</span>
             <ConfirmDelete
               label={`Eliminar categoría ${c.name}`}

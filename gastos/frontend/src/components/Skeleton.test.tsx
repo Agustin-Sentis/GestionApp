@@ -52,9 +52,10 @@ describe('loading states', () => {
   it('shows placeholders for the report, then the real figures', async () => {
     signedIn()
     const response = deferred<object>()
-    mockFetch(async () => ({
-      body: await response.promise,
-    }))
+    mockApi({
+      'GET /api/category': () => ({ body: [] }),
+      'GET /api/report/monthly': async () => ({ body: await response.promise }),
+    })
     renderWithProviders(<MonthlyReportView year={2026} month={11} />)
 
     expect(screen.getByText('Cargando el resumen…')).toBeInTheDocument()
@@ -62,11 +63,15 @@ describe('loading states', () => {
 
     response.resolve({
       year: 2026, month: 11, currency: 'ARS', income: 1000, expense: 400, balance: 600,
-      byCategory: [], usdRateUsed: null, hasUnconvertedUsd: false,
+      byCategory: [
+        { name: 'Sueldo', type: 'Income', total: 1000 },
+        { name: 'Comida', type: 'Expense', total: 400 },
+      ],
+      usdRateUsed: null, hasUnconvertedUsd: false,
     })
 
     await waitFor(() => expect(screen.queryByText('Cargando el resumen…')).not.toBeInTheDocument())
-    expect(screen.getByText('Ingresos')).toBeInTheDocument()
+    expect(screen.getByText('Sin gastar')).toBeInTheDocument()
   })
 
   it('shows placeholders for the transactions, then the list', async () => {

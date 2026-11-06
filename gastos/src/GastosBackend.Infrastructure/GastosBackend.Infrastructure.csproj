@@ -18,6 +18,9 @@
     <!-- Explicit so every project that references Infrastructure gets the same EF Core the API runs with.
          Without it, Npgsql.EntityFrameworkCore.PostgreSQL 10.0.0 pulls EF Core 10.0.0 into the test projects. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
+    <!-- Same reason, one level down: the Npgsql provider asks for Relational 10.0.0, which clashed with the 10.0.9 the
+         rest of EF Core uses (warning MSB3277). Pinning it here makes the whole graph agree. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.9" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.9">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

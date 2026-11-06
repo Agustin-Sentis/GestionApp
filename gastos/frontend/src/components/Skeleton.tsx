@@ -7,7 +7,7 @@ export function Skeleton({ className = '' }: { className?: string }) {
       // Decorative: the group around it says what is loading
       aria-hidden="true"
       // motion-safe: the pulse is skipped for people who asked their system for less movement
-      className={`rounded-md bg-slate-200 motion-safe:animate-pulse dark:bg-slate-800 ${className}`}
+      className={`rounded-sm bg-line/60 motion-safe:animate-pulse ${className}`}
     />
   )
 }
