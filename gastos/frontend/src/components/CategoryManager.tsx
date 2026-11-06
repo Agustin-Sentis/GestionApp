@@ -3,9 +3,13 @@ import type { FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, EXPENSE, INCOME } from '../api.ts'
 import type { TransactionType } from '../api.ts'
+import ConfirmDelete from './ConfirmDelete.tsx'
+import { Skeleton, SkeletonGroup } from './Skeleton.tsx'
+import { useToast } from './toastContext.ts'
 
 export default function CategoryManager() {
   const queryClient = useQueryClient()
+  const toast = useToast()
   const { data: categories = [], isLoading } = useQuery({
     queryKey: ['categories'],
     queryFn: api.categories.list,
@@ -21,12 +25,17 @@ export default function CategoryManager() {
     onSuccess: () => {
       void refresh()
       setName('')
+      toast.success('Categoría creada')
     },
   })
 
   const remove = useMutation({
     mutationFn: (id: string) => api.categories.remove(id),
-    onSuccess: () => void refresh(),
+    onSuccess: () => {
+      void refresh()
+      toast.success('Categoría eliminada')
+    },
+    onError: (error) => toast.error(error.message),
   })
 
   function onSubmit(e: FormEvent) {
@@ -61,9 +70,14 @@ export default function CategoryManager() {
       </form>
 
       {create.error && <p className="error-text" role="alert">{create.error.message}</p>}
-      {remove.error && <p className="error-text" role="alert">{remove.error.message}</p>}
 
-      {isLoading && <p className="muted">Cargando…</p>}
+      {isLoading && (
+        <SkeletonGroup label="Cargando las categorías…" className="flex flex-wrap gap-2">
+          <Skeleton className="h-8 w-24 rounded-full" />
+          <Skeleton className="h-8 w-20 rounded-full" />
+          <Skeleton className="h-8 w-28 rounded-full" />
+        </SkeletonGroup>
+      )}
       {!isLoading && categories.length === 0 && <p className="muted">Todavía no tenés categorías.</p>}
 
       <ul className="flex flex-wrap gap-2">
@@ -77,16 +91,11 @@ export default function CategoryManager() {
             }`}
           >
             <span>{c.name}</span>
-            <button
-              type="button"
-              className="btn-icon"
-              onClick={() => remove.mutate(c.id)}
-              disabled={remove.isPending}
-              aria-label={`Eliminar categoría ${c.name}`}
-              title="Eliminar"
-            >
-              ✕
-            </button>
+            <ConfirmDelete
+              label={`Eliminar categoría ${c.name}`}
+              onConfirm={() => remove.mutate(c.id)}
+              pending={remove.isPending}
+            />
           </li>
         ))}
       </ul>
