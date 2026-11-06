@@ -28,6 +28,9 @@ namespace GastosBackend.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTimeOffset>("CreatedDate")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTimeOffset>("DeleteDate")
                         .HasColumnType("timestamp with time zone");
 
@@ -50,9 +53,7 @@ namespace GastosBackend.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId", "Name")
-                        .IsUnique()
-                        .HasFilter("\"IsDeleted\" = false");
+                    b.HasIndex("UserId");
 
                     b.ToTable("Categories");
                 });
@@ -70,6 +71,9 @@ namespace GastosBackend.Infrastructure.Migrations
                     b.Property<Guid>("CategoryId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTimeOffset>("CreatedDate")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int>("Currency")
                         .HasColumnType("integer");
 
@@ -78,6 +82,10 @@ namespace GastosBackend.Infrastructure.Migrations
 
                     b.Property<DateTimeOffset>("DeleteDate")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal?>("ExchangeRate")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
@@ -106,6 +114,9 @@ namespace GastosBackend.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedDate")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset>("DeleteDate")
                         .HasColumnType("timestamp with time zone");

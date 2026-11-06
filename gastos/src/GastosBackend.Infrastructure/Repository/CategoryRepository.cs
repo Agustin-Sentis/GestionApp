@@ -21,7 +21,9 @@ namespace GastosBackend.Infrastructure.Repository
 
         public async Task<bool> ExistsByName(Guid userId, string name)
         {
-            return await _dbSet.AnyAsync(c => c.UserId == userId && c.Name == name && !c.IsDeleted);
+            // Case-insensitive: "Comida" and "comida" are the same category
+            var normalized = name.ToLower();
+            return await _dbSet.AnyAsync(c => c.UserId == userId && c.Name.ToLower() == normalized && !c.IsDeleted);
         }
     }
 }

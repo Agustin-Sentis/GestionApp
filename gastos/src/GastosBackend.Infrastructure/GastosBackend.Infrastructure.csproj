@@ -15,6 +15,9 @@
     <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
     <!-- Trae System.IdentityModel.Tokens.Jwt con las mismas versiones que usa el proyecto de presentación -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
+    <!-- Explicit so every project that references Infrastructure gets the same EF Core the API runs with.
+         Without it, Npgsql.EntityFrameworkCore.PostgreSQL 10.0.0 pulls EF Core 10.0.0 into the test projects. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.9">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

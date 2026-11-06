@@ -3,6 +3,7 @@
   <Project Path="GastosBackend.Application/GastosBackend.Application.csproj" />
   <Project Path="GastosBackend.Domain/GastosBackend.Domain.csproj" />
   <Project Path="GastosBackend.Infrastructure/GastosBackend.Infrastructure.csproj" />
+  <Project Path="GastosBackend.IntegrationTests/GastosBackend.IntegrationTests.csproj" />
   <Project Path="GastosBackend.Tests/GastosBackend.Tests.csproj" />
   <Project Path="GastosBackend/GastosBackend.Presentation.csproj" />
 </Solution>

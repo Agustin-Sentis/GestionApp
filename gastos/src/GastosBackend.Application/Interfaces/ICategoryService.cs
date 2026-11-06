@@ -5,8 +5,8 @@ namespace GastosBackend.Application.Interfaces
 {
     public interface ICategoryService
     {
-        Task<List<CategoryResponse>> GetAll(string sub);
-        Task<CategoryResponse> Create(CategoryRequest request, string sub);
-        Task Delete(Guid id, string sub);
+        Task<List<CategoryResponse>> GetAll(Guid userId);
+        Task<CategoryResponse> Create(CategoryRequest request, Guid userId);
+        Task Delete(Guid id, Guid userId);
     }
 }

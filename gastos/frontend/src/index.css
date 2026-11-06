@@ -1,5 +1,24 @@
 @import "tailwindcss";
 
+/* El modo oscuro lo decide la clase "dark" de <html> (la pone theme.ts), no solo el sistema: así el selector manual manda. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* Entrada de los avisos (se usa como motion-safe:animate-toast-in: se omite si el usuario pidió menos movimiento) */
+  --animate-toast-in: toast-in 0.18s ease-out;
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.5rem);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
 @layer base {
   body {
     @apply bg-slate-100 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;

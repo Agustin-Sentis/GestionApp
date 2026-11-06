@@ -1,6 +1,7 @@
 using GastosBackend.Application.dtos.Responses;
 using GastosBackend.Application.Interfaces;
 using GastosBackend.Domain.Entities;
+using GastosBackend.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace GastosBackend.Infrastructure.Repository
@@ -12,21 +13,43 @@ namespace GastosBackend.Infrastructure.Repository
 
         }
 
-        public async Task<List<Transaction>> GetAllByUser(
-            Guid userId, DateOnly? from, DateOnly? toExclusive, Guid? categoryId, int take)
+        public async Task<PagedResult<Transaction>> GetPageByUser(
+            Guid userId, DateOnly? from, DateOnly? toInclusive, Guid? categoryId, TransactionType? type, string? search,
+            int skip, int take)
         {
             var query = _dbSet
-                .Include(t => t.Category)
                 .Where(t => t.UserId == userId && !t.IsDeleted);
 
             if (from != null) query = query.Where(t => t.Date >= from.Value);
-            if (toExclusive != null) query = query.Where(t => t.Date < toExclusive.Value);
+            if (toInclusive != null) query = query.Where(t => t.Date <= toInclusive.Value);
             if (categoryId != null) query = query.Where(t => t.CategoryId == categoryId.Value);
+            if (type != null) query = query.Where(t => t.Category!.Type == type.Value);
+            if (!string.IsNullOrEmpty(search))
+            {
+                // "contains, ignoring case". The text is data, not a pattern: %, _ and \ are escaped so they match themselves.
+                var pattern = "%" + search.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
+                query = query.Where(t => t.Note != null && EF.Functions.ILike(t.Note, pattern, "\\"));
+            }
 
-            return await query
+            var total = await query.CountAsync();
+
+            var items = await query
+                .Include(t => t.Category)
                 .OrderByDescending(t => t.Date)
+                .ThenByDescending(t => t.CreatedDate)
+                .ThenByDescending(t => t.Id)
+                .Skip(skip)
                 .Take(take)
                 .ToListAsync();
+
+            return new PagedResult<Transaction>(items, total);
+        }
+
+        public async Task<Transaction?> GetByIdWithCategory(Guid id, Guid userId)
+        {
+            return await _dbSet
+                .Include(t => t.Category)
+                .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId && !t.IsDeleted);
         }
 
         public async Task<bool> ExistsByCategory(Guid categoryId)
@@ -44,7 +67,12 @@ namespace GastosBackend.Infrastructure.Repository
                     Name = g.Key.Name,
                     Type = g.Key.Type,
                     Currency = g.Key.Currency,
-                    Total = g.Sum(t => t.Amount)
+                    // ARS as is; USD converted with the rate stored on each transaction.
+                    Total = g.Sum(t => t.Currency == Currency.ARS
+                        ? t.Amount
+                        : (t.ExchangeRate != null ? t.Amount * t.ExchangeRate.Value : 0m)),
+                    // USD transactions that have no stored rate yet; the service converts them.
+                    PendingUsd = g.Sum(t => t.Currency == Currency.USD && t.ExchangeRate == null ? t.Amount : 0m)
                 })
                 .ToListAsync();
         }

@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
+import { lazy, Suspense } from 'react'
 import { api, EXPENSE, INCOME } from '../api.ts'
 import { formatMoney } from '../format.ts'
+import { Skeleton, SkeletonGroup } from './Skeleton.tsx'
 
-const COLORS = ['#0f766e', '#d97706', '#4f46e5', '#be185d', '#0284c7', '#65a30d', '#9333ea', '#dc2626']
+// The chart library is heavy: it is downloaded the first time a chart is needed, not with the rest of the app
+const ExpensePieChart = lazy(() => import('./ExpensePieChart.tsx'))
 
 export default function MonthlyReportView({ year, month }: { year: number; month: number }) {
   const { data, isLoading, error } = useQuery({
@@ -11,7 +13,22 @@ export default function MonthlyReportView({ year, month }: { year: number; month
     queryFn: () => api.reports.monthly(year, month),
   })
 
-  if (isLoading) return <section className="card"><p className="muted">Cargando reporte…</p></section>
+  if (isLoading) {
+    return (
+      <section className="card">
+        <h2 className="font-semibold">Resumen del mes</h2>
+        <SkeletonGroup label="Cargando el resumen…" className="flex flex-col gap-3">
+          {/* Same shape as the loaded card: three figures and the chart */}
+          <div className="grid grid-cols-3 gap-2">
+            <Skeleton className="h-[4.5rem]" />
+            <Skeleton className="h-[4.5rem]" />
+            <Skeleton className="h-[4.5rem]" />
+          </div>
+          <Skeleton className="h-[17.5rem]" />
+        </SkeletonGroup>
+      </section>
+    )
+  }
   if (error || !data) {
     return (
       <section className="card">
@@ -44,19 +61,15 @@ export default function MonthlyReportView({ year, month }: { year: number; month
           {hasIncome ? 'No hay gastos cargados en este mes.' : 'Todavía no hay movimientos cargados en este mes.'}
         </p>
       ) : (
-        <div className="w-full">
-          <ResponsiveContainer width="100%" height={280}>
-            <PieChart>
-              <Pie data={expenses} dataKey="total" nameKey="name" outerRadius={95} innerRadius={50} paddingAngle={2}>
-                {expenses.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value) => formatMoney(Number(value))} />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+        <Suspense
+          fallback={
+            <SkeletonGroup label="Cargando el gráfico…">
+              <Skeleton className="h-[17.5rem]" />
+            </SkeletonGroup>
+          }
+        >
+          <ExpensePieChart expenses={expenses} />
+        </Suspense>
       )}
     </section>
   )

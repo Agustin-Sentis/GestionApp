@@ -3,12 +3,14 @@ using GastosBackend.Application.dtos.Responses;
 using GastosBackend.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace GastosBackend.Presentation.Controllers
 {
     [Route("api/auth")]
     [ApiController]
     [AllowAnonymous]
+    [EnableRateLimiting(Program.AuthRateLimitPolicy)]
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;

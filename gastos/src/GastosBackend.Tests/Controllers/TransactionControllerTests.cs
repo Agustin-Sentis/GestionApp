@@ -13,41 +13,83 @@ public class TransactionControllerTests
 {
     private readonly Mock<ITransactionService> _transactionServiceMock;
     private readonly TransactionController _controller;
-    private const string UserId = "11111111-1111-1111-1111-111111111111";
+    private static readonly Guid UserId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
     public TransactionControllerTests()
     {
         _transactionServiceMock = new Mock<ITransactionService>();
         _controller = new TransactionController(_transactionServiceMock.Object);
-        ControllerTestHelper.SetUserClaim(_controller, UserId);
+        ControllerTestHelper.SetUserClaim(_controller, UserId.ToString());
     }
 
     [Fact]
-    public async Task GetAll_ReturnsOkWithTransactions()
+    public async Task GetPage_ReturnsOkWithThePage()
     {
-        var filter = new TransactionFilterRequest { Year = 2026, Month = 11 };
-        _transactionServiceMock.Setup(s => s.GetAll(filter, UserId))
-            .ReturnsAsync(new List<TransactionResponse> { new TransactionResponse { Id = Guid.NewGuid() } });
+        var request = new TransactionPageRequest { Page = 2, PageSize = 10 };
+        _transactionServiceMock.Setup(s => s.GetPage(request, UserId))
+            .ReturnsAsync(new PagedResponse<TransactionResponse>
+            {
+                Items = new List<TransactionResponse> { new TransactionResponse { Id = Guid.NewGuid() } },
+                Total = 11,
+                Page = 2,
+                PageSize = 10
+            });
 
-        var result = await _controller.GetAll(filter);
+        var result = await _controller.GetPage(request);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
-        Assert.Single(Assert.IsType<List<TransactionResponse>>(ok.Value));
+        var page = Assert.IsType<PagedResponse<TransactionResponse>>(ok.Value);
+        Assert.Single(page.Items);
+        Assert.Equal(2, page.TotalPages);
     }
 
     [Fact]
-    public async Task Create_ReturnsCreated()
+    public async Task Export_ReturnsACsvFileWithTheTransactions()
+    {
+        var request = new TransactionPageRequest { Year = 2026, Month = 11 };
+        _transactionServiceMock.Setup(s => s.GetForExport(request, UserId))
+            .ReturnsAsync(new List<TransactionResponse>
+            {
+                new TransactionResponse { Id = Guid.NewGuid(), Amount = 100, CategoryName = "Comida", Date = new DateOnly(2026, 11, 3) }
+            });
+
+        var result = await _controller.Export(request);
+
+        var file = Assert.IsType<FileContentResult>(result);
+        Assert.Equal("text/csv; charset=utf-8", file.ContentType);
+        Assert.Equal("movimientos.csv", file.FileDownloadName);
+        Assert.Contains("2026-11-03", System.Text.Encoding.UTF8.GetString(file.FileContents));
+    }
+
+    [Fact]
+    public async Task GetById_ReturnsOkWithTheTransaction()
+    {
+        var id = Guid.NewGuid();
+        _transactionServiceMock.Setup(s => s.GetById(id, UserId))
+            .ReturnsAsync(new TransactionResponse { Id = id });
+
+        var result = await _controller.GetById(id);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(id, Assert.IsType<TransactionResponse>(ok.Value).Id);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsCreated_WithALocationThatPointsToTheNewTransaction()
     {
         var request = new TransactionRequest
         {
             Amount = 100, Currency = Currency.ARS, Date = new DateOnly(2026, 11, 3), CategoryId = Guid.NewGuid()
         };
+        var createdId = Guid.NewGuid();
         _transactionServiceMock.Setup(s => s.Create(request, UserId))
-            .ReturnsAsync(new TransactionResponse { Id = Guid.NewGuid(), Amount = 100 });
+            .ReturnsAsync(new TransactionResponse { Id = createdId, Amount = 100 });
 
         var result = await _controller.Create(request);
 
-        Assert.IsType<CreatedAtActionResult>(result.Result);
+        var created = Assert.IsType<CreatedAtActionResult>(result.Result);
+        Assert.Equal(nameof(TransactionController.GetById), created.ActionName);
+        Assert.Equal(createdId, created.RouteValues!["id"]);
     }
 
     [Fact]

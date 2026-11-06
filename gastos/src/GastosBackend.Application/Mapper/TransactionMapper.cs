@@ -1,6 +1,7 @@
 using GastosBackend.Application.dtos.Requests;
 using GastosBackend.Application.dtos.Responses;
 using GastosBackend.Domain.Entities;
+using GastosBackend.Domain.Enums;
 
 namespace GastosBackend.Application.Mapper
 {
@@ -14,6 +15,8 @@ namespace GastosBackend.Application.Mapper
                 Id = transaction.Id,
                 Amount = transaction.Amount,
                 Currency = transaction.Currency,
+                ExchangeRate = transaction.ExchangeRate,
+                ArsAmount = ToArs(transaction),
                 Date = transaction.Date,
                 Note = transaction.Note,
                 CategoryId = transaction.CategoryId,
@@ -45,6 +48,18 @@ namespace GastosBackend.Application.Mapper
             entity.Note = NormalizeNote(request.Note);
             entity.CategoryId = request.CategoryId;
             return entity;
+        }
+
+        private static decimal? ToArs(Transaction transaction)
+        {
+            if (transaction.Currency == Currency.ARS)
+            {
+                return transaction.Amount;
+            }
+
+            return transaction.ExchangeRate is { } rate
+                ? Math.Round(transaction.Amount * rate, 2)
+                : null;
         }
 
         private static string? NormalizeNote(string? note)

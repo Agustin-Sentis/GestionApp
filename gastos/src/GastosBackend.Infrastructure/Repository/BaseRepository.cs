@@ -1,6 +1,8 @@
+using GastosBackend.Application.Exceptions;
 using GastosBackend.Application.Interfaces;
 using GastosBackend.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace GastosBackend.Infrastructure.Repository
 {
@@ -27,8 +29,9 @@ namespace GastosBackend.Infrastructure.Repository
 
         public virtual async Task<T> Add(T entity)
         {
+            entity.CreatedDate = DateTimeOffset.UtcNow;
             _dbSet.Add(entity);
-            await _context.SaveChangesAsync();
+            await SaveChangesTranslatingDuplicates();
             return entity;
         }
 
@@ -36,7 +39,23 @@ namespace GastosBackend.Infrastructure.Repository
         {
             entity.UpdateDate = DateTimeOffset.UtcNow;
             _dbSet.Update(entity);
-            await _context.SaveChangesAsync();
+            await SaveChangesTranslatingDuplicates();
+        }
+
+        /// <summary>
+        /// Saves the pending changes. A unique constraint violation (two requests racing past the "already exists" check)
+        /// becomes a <see cref="DuplicateException"/> instead of an unhandled database error.
+        /// </summary>
+        protected async Task SaveChangesTranslatingDuplicates()
+        {
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+            {
+                throw new DuplicateException("A record with the same unique values already exists.", ex);
+            }
         }
 
         public virtual async Task Delete(Guid IdEntity)

@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using GastosBackend.Application.dtos.Requests;
 using GastosBackend.Application.dtos.Responses;
 using GastosBackend.Application.Interfaces;
@@ -10,7 +9,7 @@ namespace GastosBackend.Presentation.Controllers
     [Route("api/[controller]")]
     [ApiController]
     [Authorize]
-    public class CategoryController : ControllerBase
+    public class CategoryController : ApiControllerBase
     {
         private readonly ICategoryService _categoryService;
 
@@ -19,15 +18,13 @@ namespace GastosBackend.Presentation.Controllers
             _categoryService = categoryService;
         }
 
-        private string Sub => User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-
         /// <summary>
         /// This endpoint retrieves all the categories of the authenticated user, ordered by name.
         /// </summary>
         [HttpGet]
         public async Task<ActionResult<List<CategoryResponse>>> GetAll()
         {
-            return Ok(await _categoryService.GetAll(Sub));
+            return Ok(await _categoryService.GetAll(UserId));
         }
 
         /// <summary>
@@ -37,7 +34,7 @@ namespace GastosBackend.Presentation.Controllers
         [HttpPost]
         public async Task<ActionResult<CategoryResponse>> Create([FromBody] CategoryRequest request)
         {
-            var created = await _categoryService.Create(request, Sub);
+            var created = await _categoryService.Create(request, UserId);
             return CreatedAtAction(nameof(GetAll), created);
         }
 
@@ -48,7 +45,7 @@ namespace GastosBackend.Presentation.Controllers
         [HttpDelete("{id}")]
         public async Task<ActionResult> Delete([FromRoute] Guid id)
         {
-            await _categoryService.Delete(id, Sub);
+            await _categoryService.Delete(id, UserId);
             return NoContent();
         }
     }

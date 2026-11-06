@@ -13,13 +13,13 @@ public class CategoryControllerTests
 {
     private readonly Mock<ICategoryService> _categoryServiceMock;
     private readonly CategoryController _controller;
-    private const string UserId = "11111111-1111-1111-1111-111111111111";
+    private static readonly Guid UserId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
     public CategoryControllerTests()
     {
         _categoryServiceMock = new Mock<ICategoryService>();
         _controller = new CategoryController(_categoryServiceMock.Object);
-        ControllerTestHelper.SetUserClaim(_controller, UserId);
+        ControllerTestHelper.SetUserClaim(_controller, UserId.ToString());
     }
 
     [Fact]

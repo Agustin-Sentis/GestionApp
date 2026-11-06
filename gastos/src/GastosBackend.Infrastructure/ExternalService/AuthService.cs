@@ -16,6 +16,9 @@ namespace GastosBackend.Infrastructure.ExternalService
 {
     public class AuthService : IAuthService
     {
+        /// <summary>Valid BCrypt hash (default work factor) of a throwaway password; computed once, never matches a real password.</summary>
+        private static readonly string UnknownUserHash = BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString());
+
         private readonly IUserRepository _userRepository;
         private readonly IPasswordHash _passwordHash;
         private readonly JwtOptions _jwtOptions;
@@ -42,16 +45,33 @@ namespace GastosBackend.Infrastructure.ExternalService
                 throw new ConflictException("Ya existe un usuario con ese email.");
             }
 
-            var user = await _userRepository.Add(request.ToUser(_passwordHash.Hash(request.Password)));
-            return BuildAuthResponse(user);
+            try
+            {
+                var user = await _userRepository.Add(request.ToUser(_passwordHash.Hash(request.Password)));
+                return BuildAuthResponse(user);
+            }
+            catch (DuplicateException)
+            {
+                // Another request registered the same email between the check above and the insert
+                throw new ConflictException("Ya existe un usuario con ese email.");
+            }
         }
 
         public async Task<AuthResponse> SignIn(SignInRequest request)
         {
+            var result = new SignInValidator().Validate(request);
+            if (!result.IsValid)
+            {
+                throw new ValidationException(result.ToString("~"));
+            }
+
             var email = request.Email.Trim().ToLowerInvariant();
             var user = await _userRepository.GetByEmail(email);
 
-            if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.Password))
+            // Always run BCrypt, even when the user does not exist, so the response time does not reveal which emails are registered
+            var passwordMatches = BCrypt.Net.BCrypt.Verify(request.Password, user?.Password ?? UnknownUserHash);
+
+            if (user == null || !passwordMatches)
             {
                 throw new UnauthorizedException("Credenciales inválidas.");
             }
