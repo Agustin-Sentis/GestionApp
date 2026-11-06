@@ -36,13 +36,15 @@ namespace GastosBackend.Infrastructure
                     .HasForeignKey(c => c.UserId)
                     .OnDelete(DeleteBehavior.Restrict);
 
-                // Sin el filtro, una categoría borrada (soft delete) impediría crear otra con el mismo nombre
-                entity.HasIndex(c => new { c.UserId, c.Name }).IsUnique().HasFilter("\"IsDeleted\" = false");
+                // The unique index on (UserId, lower("Name")) WHERE "IsDeleted" = false is created with raw SQL in the
+                // migration "CaseInsensitiveCategoryNames": EF Core cannot model an index on an expression.
+                // It ignores soft-deleted rows so a deleted category does not block creating another one with the same name.
             });
 
             modelBuilder.Entity<Transaction>(entity =>
             {
                 entity.Property(t => t.Amount).HasPrecision(18, 2);
+                entity.Property(t => t.ExchangeRate).HasPrecision(18, 4);
                 entity.Property(t => t.Note).HasMaxLength(200);
 
                 entity.HasOne(t => t.Category)

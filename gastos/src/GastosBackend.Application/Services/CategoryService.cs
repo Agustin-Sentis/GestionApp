@@ -18,17 +18,14 @@ namespace GastosBackend.Application.Services
             _transactionRepository = transactionRepo;
         }
 
-        public async Task<List<CategoryResponse>> GetAll(string sub)
+        public async Task<List<CategoryResponse>> GetAll(Guid userId)
         {
-            var userId = ParseUserId(sub);
             var categories = await _categoryRepository.GetAllByUser(userId);
             return categories.Select(c => c.ToCategoryResponse()).ToList();
         }
 
-        public async Task<CategoryResponse> Create(CategoryRequest request, string sub)
+        public async Task<CategoryResponse> Create(CategoryRequest request, Guid userId)
         {
-            var userId = ParseUserId(sub);
-
             var validations = new CategoryRequestValidations();
             var result = validations.Validate(request);
             if (!result.IsValid)
@@ -36,19 +33,30 @@ namespace GastosBackend.Application.Services
                 throw new ValidationException(result.ToString("~"));
             }
 
-            if (await _categoryRepository.ExistsByName(userId, request.Name.Trim()))
+            var name = request.Name.Trim();
+            var duplicateMessage = $"Ya existe una categoría con el nombre '{name}'.";
+
+            if (await _categoryRepository.ExistsByName(userId, name))
             {
-                throw new ConflictException($"Ya existe una categoría con el nombre '{request.Name.Trim()}'.");
+                throw new ConflictException(duplicateMessage);
             }
 
             var newCategory = request.ToCategory(userId);
-            await _categoryRepository.Add(newCategory);
+            try
+            {
+                await _categoryRepository.Add(newCategory);
+            }
+            catch (DuplicateException)
+            {
+                // Another request created the same category between the check above and the insert
+                throw new ConflictException(duplicateMessage);
+            }
+
             return newCategory.ToCategoryResponse();
         }
 
-        public async Task Delete(Guid id, string sub)
+        public async Task Delete(Guid id, Guid userId)
         {
-            var userId = ParseUserId(sub);
             var category = await _categoryRepository.Get(id);
 
             if (category == null || category.UserId != userId)
@@ -62,15 +70,6 @@ namespace GastosBackend.Application.Services
             }
 
             await _categoryRepository.Delete(id);
-        }
-
-        private static Guid ParseUserId(string sub)
-        {
-            if (!Guid.TryParse(sub, out Guid userId))
-            {
-                throw new ValidationException("El ID enviado no es válido");
-            }
-            return userId;
         }
     }
 }

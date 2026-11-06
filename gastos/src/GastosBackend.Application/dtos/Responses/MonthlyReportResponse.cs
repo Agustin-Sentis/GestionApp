@@ -9,7 +9,11 @@ namespace GastosBackend.Application.dtos.Responses
         public decimal Total { get; set; }
     }
 
-    /// <summary>Reporte mensual expresado en ARS. Si hubo movimientos en USD, UsdRateUsed trae la cotización aplicada.</summary>
+    /// <summary>
+    /// Monthly report expressed in ARS. USD transactions are converted with the rate stored on each one.
+    /// UsdRateUsed is only set when the current rate was needed for USD transactions without a stored rate.
+    /// HasUnconvertedUsd is true when some USD transactions were left out because no rate was available.
+    /// </summary>
     public class MonthlyReportResponse
     {
         public int Year { get; set; }
@@ -20,5 +24,6 @@ namespace GastosBackend.Application.dtos.Responses
         public decimal Balance { get; set; }
         public List<CategoryTotalResponse> ByCategory { get; set; } = new();
         public decimal? UsdRateUsed { get; set; }
+        public bool HasUnconvertedUsd { get; set; }
     }
 }
