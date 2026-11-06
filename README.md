@@ -70,31 +70,6 @@ Patrones aplicados: Repository y Generic Repository, Service Layer, DTO + Mapper
 
 La documentación interactiva completa está en `/scalar`.
 
-## 🚀 Correrlo en local
-
-Requisitos: .NET 10 SDK, Node 22+ y Docker.
-
-```bash
-cd gastos
-cp .env.example .env            # completá DB_PASSWORD y JWT_KEY
-docker compose up -d db         # PostgreSQL
-
-cd src
-dotnet user-secrets set "Jwt:Key" "<clave-de-32+-caracteres>" --project GastosBackend
-dotnet run --project GastosBackend      # http://localhost:8080/scalar
-```
-
-```bash
-cd gastos/frontend
-cp .env.example .env            # VITE_API_URL=http://localhost:8080
-npm install
-npm run dev                     # http://localhost:5173
-```
-
-Tests del backend: `dotnet test gastos/src/GastosBackend.slnx`
-
-Más detalle (migraciones, Docker, deploy) en [`gastos/README.md`](gastos/README.md).
-
 ## 🛠️ Mejoras pendientes
 
 Es un proyecto en evolución. Lo que tengo identificado para seguir:
