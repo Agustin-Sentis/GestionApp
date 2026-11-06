@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import Brand from '../components/Brand.tsx'
+import Brand, { APP_NAME } from '../components/Brand.tsx'
 import ThemeToggle from '../components/ThemeToggle.tsx'
 import { formatDate, formatMoney } from '../format.ts'
 import { CAPABILITIES, LATER, SAMPLE_LINES, sampleTotals } from '../landingContent.ts'
@@ -34,8 +34,8 @@ export default function LandingPage() {
                 Sabé <span className="marker paint-in">lo que te queda.</span>
               </h1>
               <p className="max-w-prose text-lg leading-relaxed">
-                Cuentas es un cuaderno de gastos que hace las cuentas por vos: pesos y dólares, tus propias categorías y
-                un resumen claro de cada mes.
+                {APP_NAME} es un cuaderno de gastos para quien maneja pesos y dólares. Anotá cada movimiento en la
+                moneda que usaste: el mes se suma en pesos, con la cotización del día en que lo cargaste.
               </p>
               <div className="flex flex-wrap items-center gap-4">
                 <Link to="/login?modo=registro" className="btn-primary inline-block px-5 py-2.5 text-center text-base">

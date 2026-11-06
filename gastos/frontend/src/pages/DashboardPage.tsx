@@ -4,7 +4,7 @@ import type { Transaction } from '../api.ts'
 import { useAuth } from '../auth.tsx'
 import { MAX_MONTH, MIN_MONTH, addMonths, parseMonthValue } from '../format.ts'
 import { useListFilters } from '../useListFilters.ts'
-import Brand, { BrandMark } from '../components/Brand.tsx'
+import Brand, { APP_NAME, BrandMark } from '../components/Brand.tsx'
 import CategoryManager from '../components/CategoryManager.tsx'
 import MonthStats from '../components/MonthStats.tsx'
 import MonthlyReportView from '../components/MonthlyReportView.tsx'
@@ -62,13 +62,13 @@ export default function DashboardPage() {
       >
         <BrandMark />
         <span className="display rotate-180 text-sm uppercase [writing-mode:vertical-rl]" style={{ letterSpacing: '0.3em' }}>
-          Cuentas
+          {APP_NAME}
         </span>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex shrink-0 flex-wrap items-center gap-x-6 gap-y-3 border-b-4 border-double border-margin bg-paper/80 px-3 py-3 sm:px-5 xl:border-b-2">
-          <h1 className="sr-only">Cuentas: gestor de gastos</h1>
+          <h1 className="sr-only">{APP_NAME}: gestor de gastos</h1>
           {/*
             On a phone: the name and the controls share the first row, then the month, then the figures.
             From lg up everything is one row, in this order: name (until the side margin has it), month, figures, controls.
