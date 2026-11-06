@@ -7,7 +7,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * IDENTIDAD: el cuaderno de cuentas.
+ * IDENTIDAD de DualBalance: el cuaderno.
  *   Claro  = hoja cuadriculada: tinta de birome azul, margen rojo, resaltador amarillo.
  *   Oscuro = pizarrón verde del colegio: tiza azul, tiza roja, tiza amarilla.
  * Los colores viven en variables (abajo) y Tailwind las usa por nombre (bg-paper, text-ink, border-line...),

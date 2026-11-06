@@ -35,6 +35,12 @@ describe('AuthPage', () => {
     expect(screen.getByText('Ingresá a tu cuenta')).toBeInTheDocument()
   })
 
+  it('has the name of the app as the link back to the landing page', () => {
+    renderWithProviders(<AuthPage />)
+
+    expect(screen.getByRole('link', { name: 'DualBalance, volver al inicio' })).toHaveAttribute('href', '/')
+  })
+
   it('leads back to the landing page', () => {
     renderWithProviders(<AuthPage />)
 

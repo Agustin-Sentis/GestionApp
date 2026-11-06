@@ -20,13 +20,18 @@ export function BrandMark({ className = 'size-8' }: { className?: string }) {
   )
 }
 
+/** The name of the app. One word to read ("DualBalance"), drawn on two lines so it fits beside the mark in a narrow header. */
+export const APP_NAME = 'DualBalance'
+
 /** The mark and the name, side by side. */
 export default function Brand({ className = '' }: { className?: string }) {
   return (
     <span className={`inline-flex items-center gap-2.5 ${className}`}>
       <BrandMark />
-      <span className="display text-lg uppercase" style={{ letterSpacing: '0.04em' }}>
-        Cuentas
+      {/* No space between the two spans: a screen reader says "DualBalance", not "Dual Balance" */}
+      <span className="flex flex-col leading-none">
+        <span className="text-[0.6rem] font-semibold tracking-[0.42em] uppercase">Dual</span>
+        <span className="display text-lg uppercase" style={{ letterSpacing: '0.03em' }}>Balance</span>
       </span>
     </span>
   )

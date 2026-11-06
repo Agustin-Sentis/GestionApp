@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth.tsx'
-import Brand from '../components/Brand.tsx'
+import Brand, { APP_NAME } from '../components/Brand.tsx'
 import ThemeToggle from '../components/ThemeToggle.tsx'
 
 export default function AuthPage() {
@@ -39,7 +39,7 @@ export default function AuthPage() {
 
       <div className="mx-auto flex min-h-dvh max-w-6xl flex-col pr-4 pl-8 sm:pr-8 sm:pl-24">
         <header className="flex items-center justify-between gap-4 py-5">
-          <Link to="/" aria-label="Cuentas, volver al inicio"><Brand /></Link>
+          <Link to="/" aria-label={`${APP_NAME}, volver al inicio`}><Brand /></Link>
           <ThemeToggle />
         </header>
 

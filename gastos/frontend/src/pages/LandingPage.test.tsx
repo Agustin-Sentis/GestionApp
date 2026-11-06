@@ -14,6 +14,15 @@ describe('LandingPage', () => {
     expect(heading).toHaveTextContent('Sabé lo que te queda.')
   })
 
+  it('says its name and that it is for someone who uses pesos and dollars', () => {
+    renderWithProviders(<LandingPage />)
+
+    const intro = screen.getByText(/es un cuaderno de gastos para quien maneja pesos y dólares/)
+    expect(intro).toHaveTextContent('DualBalance')
+    expect(intro).toHaveTextContent('cotización del día')
+    expect(screen.queryByText(/Cuentas es/)).not.toBeInTheDocument() // the old name is gone
+  })
+
   it('sends new people to create an account and returning ones to sign in', () => {
     renderWithProviders(<LandingPage />)
 
@@ -75,7 +84,9 @@ describe('LandingPage', () => {
   it('shows the USD line with the rate it was converted with', () => {
     renderWithProviders(<LandingPage />)
 
-    expect(screen.getByText(/cotización del día/)).toBeInTheDocument()
+    // The intro says it too, so look only inside the example sheet
+    const sheet = screen.getByRole('figure', { name: 'Ejemplo de una hoja del libro' })
+    expect(within(sheet).getByText(/cotización del día/)).toBeInTheDocument()
   })
 
   it('lists what is still to come, apart from what exists', () => {
