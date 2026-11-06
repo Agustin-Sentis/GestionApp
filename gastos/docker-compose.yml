@@ -1,0 +1,50 @@
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gastos
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Definí DB_PASSWORD en el archivo .env}
+      POSTGRES_DB: gastos
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      # Solo en loopback: permite `dotnet run` / `dotnet ef` desde tu máquina sin exponer la base a la red
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gastos -d gastos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./src
+      dockerfile: GastosBackend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__GastosConnectionStrings: Host=db;Port=5432;Database=gastos;Username=gastos;Password=${DB_PASSWORD}
+      Jwt__Key: ${JWT_KEY:?Definí JWT_KEY en el archivo .env (mínimo 32 caracteres)}
+      Cors__AllowedOrigin: ${FRONTEND_URL:-http://localhost:5173}
+    ports:
+      - "8080:8080"
+
+  # Opcional: sirve el front desde el mismo compose (útil en el home server).
+  # Si lo desplegás en Vercel/Netlify/Cloudflare Pages, no lo necesitás.
+  web:
+    profiles: ["web"]
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "5173:80"
+
+volumes:
+  pgdata:

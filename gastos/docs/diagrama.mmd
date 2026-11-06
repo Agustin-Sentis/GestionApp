@@ -1,0 +1,51 @@
+classDiagram
+    direction LR
+
+    class BaseEntity {
+        <<abstract>>
+        +Guid Id
+        +bool IsDeleted
+        +DateTimeOffset UpdateDate
+        +DateTimeOffset DeleteDate
+    }
+
+    class User {
+        +string Email
+        +string Password
+    }
+
+    class Category {
+        +string Name
+        +TransactionType Type
+        +Guid UserId
+    }
+
+    class Transaction {
+        +decimal Amount
+        +Currency Currency
+        +DateOnly Date
+        +string Note
+        +Guid CategoryId
+        +Guid UserId
+    }
+
+    class TransactionType {
+        <<enumeration>>
+        Expense
+        Income
+    }
+
+    class Currency {
+        <<enumeration>>
+        ARS
+        USD
+    }
+
+    BaseEntity <|-- User
+    BaseEntity <|-- Category
+    BaseEntity <|-- Transaction
+    User "1" --> "*" Category
+    User "1" --> "*" Transaction
+    Category "1" --> "*" Transaction
+    Category --> TransactionType
+    Transaction --> Currency

@@ -1,0 +1,20 @@
+# Secretos
+.env
+*.env.local
+
+# .NET
+bin/
+obj/
+*.user
+.vs/
+TestResults/
+
+# Node
+node_modules/
+dist/
+*.log
+
+# IDEs / SO
+.idea/
+.vscode/
+.DS_Store
