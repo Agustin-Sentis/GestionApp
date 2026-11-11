@@ -4,6 +4,7 @@ using GastosBackend.Application.Exceptions;
 using GastosBackend.Application.Interfaces;
 using GastosBackend.Application.Mapper;
 using GastosBackend.Application.Validations;
+using GastosBackend.Domain.Entities;
 using GastosBackend.Domain.Enums;
 
 namespace GastosBackend.Application.Services
@@ -14,17 +15,41 @@ namespace GastosBackend.Application.Services
         private readonly ICategoryRepository _categoryRepository;
         private readonly IDolarApiService _dolarApiService;
         private readonly IUserRepository _userRepository;
+        private readonly IBudgetAlertDispatcher _budgetAlerts;
 
         public TransactionService(
             ITransactionRepository transactionRepo,
             ICategoryRepository categoryRepo,
             IDolarApiService dolarApiService,
-            IUserRepository userRepo)
+            IUserRepository userRepo,
+            IBudgetAlertDispatcher budgetAlerts)
         {
             _transactionRepository = transactionRepo;
             _categoryRepository = categoryRepo;
             _dolarApiService = dolarApiService;
             _userRepository = userRepo;
+            _budgetAlerts = budgetAlerts;
+        }
+
+        /// <summary>
+        /// An expense was saved: ask for the budget alert check to run in the background. Income has no budget. Nothing that goes
+        /// wrong here may undo or fail the save, which already happened.
+        /// </summary>
+        private void CheckBudgetAlert(Category category, DateOnly date, Guid userId)
+        {
+            if (category.Type != TransactionType.Expense)
+            {
+                return;
+            }
+
+            try
+            {
+                _budgetAlerts.Dispatch(userId, category.Id, date);
+            }
+            catch
+            {
+                // The dispatcher logs its own failures; this is only the last safety net around a finished save
+            }
         }
 
         /// <summary>
@@ -145,6 +170,7 @@ namespace GastosBackend.Application.Services
 
             newTransaction.ApplyRates(await ResolveExchangeRates(request.Currency));
             await _transactionRepository.Add(newTransaction);
+            CheckBudgetAlert(category, request.Date, userId);
             return newTransaction.ToTransactionResponse();
         }
 
@@ -189,6 +215,7 @@ namespace GastosBackend.Application.Services
             }
 
             await _transactionRepository.Update(updated);
+            CheckBudgetAlert(category, request.Date, userId);
         }
 
         public async Task Delete(Guid id, Guid userId)

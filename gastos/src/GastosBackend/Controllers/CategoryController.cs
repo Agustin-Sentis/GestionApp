@@ -39,6 +39,15 @@ namespace GastosBackend.Presentation.Controllers
         }
 
         /// <summary>
+        /// This endpoint sets the monthly budget (in ARS) of an expense category, or removes it when MonthlyBudget is null.
+        /// </summary>
+        [HttpPut("{id}/budget")]
+        public async Task<ActionResult<CategoryResponse>> SetBudget([FromRoute] Guid id, [FromBody] CategoryBudgetRequest request)
+        {
+            return Ok(await _categoryService.SetBudget(id, request, UserId));
+        }
+
+        /// <summary>
         /// This endpoint deletes a category by its unique identifier (id).
         /// A category that still has transactions cannot be deleted.
         /// </summary>

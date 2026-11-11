@@ -14,6 +14,7 @@ public class TransactionServiceTests
     private readonly Mock<ICategoryRepository> _categoryRepositoryMock;
     private readonly Mock<IDolarApiService> _dolarApiServiceMock;
     private readonly Mock<IUserRepository> _userRepositoryMock;
+    private readonly Mock<IBudgetAlertDispatcher> _budgetAlertsMock = new();
     private readonly TransactionService _transactionService;
     private readonly Guid _userId = Guid.NewGuid();
     private readonly Category _category;
@@ -29,7 +30,7 @@ public class TransactionServiceTests
         _userRepositoryMock = new Mock<IUserRepository>();
         _transactionService = new TransactionService(
             _transactionRepositoryMock.Object, _categoryRepositoryMock.Object, _dolarApiServiceMock.Object,
-            _userRepositoryMock.Object);
+            _userRepositoryMock.Object, _budgetAlertsMock.Object);
 
         _category = new Category { Id = Guid.NewGuid(), Name = "Comida", Type = TransactionType.Expense, UserId = _userId };
         _categoryRepositoryMock.Setup(r => r.Get(_category.Id)).ReturnsAsync(_category);
@@ -301,6 +302,74 @@ public class TransactionServiceTests
         await Assert.ThrowsAsync<NotFoundException>(
             () => _transactionService.Update(ValidRequest(), transactionId, _userId));
         _transactionRepositoryMock.Verify(r => r.Update(It.IsAny<Transaction>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Create_ChecksTheBudgetAlert_ForAnExpense_OfTheMonthOfTheExpense()
+    {
+        var request = ValidRequest();
+
+        await _transactionService.Create(request, _userId);
+
+        _budgetAlertsMock.Verify(d => d.Dispatch(_userId, _category.Id, request.Date), Times.Once);
+    }
+
+    [Fact]
+    public async Task Create_DoesNotCheckTheBudgetAlert_ForIncome()
+    {
+        _category.Type = TransactionType.Income;
+
+        await _transactionService.Create(ValidRequest(), _userId);
+
+        _budgetAlertsMock.Verify(d => d.Dispatch(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<DateOnly>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Create_DoesNotCheckTheBudgetAlert_WhenTheRequestIsInvalid()
+    {
+        var request = ValidRequest();
+        request.Amount = -1;
+
+        await Assert.ThrowsAsync<ValidationException>(() => _transactionService.Create(request, _userId));
+
+        _budgetAlertsMock.Verify(d => d.Dispatch(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<DateOnly>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Create_Succeeds_EvenIfTheAlertDispatcherThrows()
+    {
+        _budgetAlertsMock.Setup(d => d.Dispatch(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<DateOnly>()))
+            .Throws(new InvalidOperationException("boom"));
+
+        var result = await _transactionService.Create(ValidRequest(), _userId);
+
+        Assert.Equal(15000, result.Amount);
+        _transactionRepositoryMock.Verify(r => r.Add(It.IsAny<Transaction>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Update_ChecksTheBudgetAlert_WithTheNewDateAndCategory()
+    {
+        var transactionId = Guid.NewGuid();
+        _transactionRepositoryMock.Setup(r => r.Get(transactionId))
+            .ReturnsAsync(new Transaction { Id = transactionId, UserId = _userId, Amount = 1, Currency = Currency.ARS });
+        var request = ValidRequest();
+
+        await _transactionService.Update(request, transactionId, _userId);
+
+        _budgetAlertsMock.Verify(d => d.Dispatch(_userId, _category.Id, request.Date), Times.Once);
+    }
+
+    [Fact]
+    public async Task Delete_DoesNotCheckTheBudgetAlert()
+    {
+        var transactionId = Guid.NewGuid();
+        _transactionRepositoryMock.Setup(r => r.Get(transactionId))
+            .ReturnsAsync(new Transaction { Id = transactionId, UserId = _userId });
+
+        await _transactionService.Delete(transactionId, _userId);
+
+        _budgetAlertsMock.Verify(d => d.Dispatch(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<DateOnly>()), Times.Never);
     }
 
     [Fact]

@@ -22,6 +22,50 @@ namespace GastosBackend.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("GastosBackend.Domain.Entities.BudgetAlert", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("DeleteDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Level")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("UserId", "CategoryId", "Year", "Month", "Level")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("BudgetAlerts");
+                });
+
             modelBuilder.Entity("GastosBackend.Domain.Entities.Category", b =>
                 {
                     b.Property<Guid>("Id")
@@ -36,6 +80,10 @@ namespace GastosBackend.Infrastructure.Migrations
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
+
+                    b.Property<decimal?>("MonthlyBudget")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -126,6 +174,9 @@ namespace GastosBackend.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("BudgetEmailAlerts")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTimeOffset>("CreatedDate")
                         .HasColumnType("timestamp with time zone");
 
@@ -139,6 +190,9 @@ namespace GastosBackend.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(254)
                         .HasColumnType("character varying(254)");
+
+                    b.Property<DateTimeOffset?>("EmailConfirmedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
@@ -157,6 +211,65 @@ namespace GastosBackend.Infrastructure.Migrations
                         .HasFilter("\"IsDeleted\" = false");
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("GastosBackend.Domain.Entities.UserToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("DeleteDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Purpose")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("UpdateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("UsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserTokens");
+                });
+
+            modelBuilder.Entity("GastosBackend.Domain.Entities.BudgetAlert", b =>
+                {
+                    b.HasOne("GastosBackend.Domain.Entities.Category", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GastosBackend.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("GastosBackend.Domain.Entities.Category", b =>
@@ -183,6 +296,15 @@ namespace GastosBackend.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Category");
+                });
+
+            modelBuilder.Entity("GastosBackend.Domain.Entities.UserToken", b =>
+                {
+                    b.HasOne("GastosBackend.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

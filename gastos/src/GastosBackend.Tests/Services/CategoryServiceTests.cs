@@ -66,6 +66,91 @@ public class CategoryServiceTests
     }
 
     [Fact]
+    public async Task SetBudget_SavesTheAmount_OfAnExpenseCategory()
+    {
+        var category = new Category { Id = Guid.NewGuid(), UserId = _userId, Name = "Comida", Type = TransactionType.Expense };
+        _categoryRepositoryMock.Setup(r => r.Get(category.Id)).ReturnsAsync(category);
+
+        var result = await _categoryService.SetBudget(category.Id, new CategoryBudgetRequest { MonthlyBudget = 300000.456m }, _userId);
+
+        Assert.Equal(300000.46m, result.MonthlyBudget);
+        _categoryRepositoryMock.Verify(
+            r => r.Update(It.Is<Category>(c => c.Id == category.Id && c.MonthlyBudget == 300000.46m)), Times.Once);
+    }
+
+    [Fact]
+    public async Task SetBudget_RemovesTheBudget_WhenTheAmountIsNull()
+    {
+        var category = new Category
+        {
+            Id = Guid.NewGuid(), UserId = _userId, Name = "Comida", Type = TransactionType.Expense, MonthlyBudget = 100m
+        };
+        _categoryRepositoryMock.Setup(r => r.Get(category.Id)).ReturnsAsync(category);
+
+        var result = await _categoryService.SetBudget(category.Id, new CategoryBudgetRequest { MonthlyBudget = null }, _userId);
+
+        Assert.Null(result.MonthlyBudget);
+        _categoryRepositoryMock.Verify(r => r.Update(It.Is<Category>(c => c.MonthlyBudget == null)), Times.Once);
+    }
+
+    [Fact]
+    public async Task SetBudget_RemovesTheBudget_EvenOfAnIncomeCategory()
+    {
+        // Cannot happen through the API, but removing something is never the thing to refuse
+        var category = new Category { Id = Guid.NewGuid(), UserId = _userId, Name = "Sueldo", Type = TransactionType.Income, MonthlyBudget = 5m };
+        _categoryRepositoryMock.Setup(r => r.Get(category.Id)).ReturnsAsync(category);
+
+        await _categoryService.SetBudget(category.Id, new CategoryBudgetRequest { MonthlyBudget = null }, _userId);
+
+        _categoryRepositoryMock.Verify(r => r.Update(It.Is<Category>(c => c.MonthlyBudget == null)), Times.Once);
+    }
+
+    [Fact]
+    public async Task SetBudget_Throws_ForAnIncomeCategory()
+    {
+        var category = new Category { Id = Guid.NewGuid(), UserId = _userId, Name = "Sueldo", Type = TransactionType.Income };
+        _categoryRepositoryMock.Setup(r => r.Get(category.Id)).ReturnsAsync(category);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(
+            () => _categoryService.SetBudget(category.Id, new CategoryBudgetRequest { MonthlyBudget = 100m }, _userId));
+
+        Assert.Equal("Solo las categorías de gasto pueden tener presupuesto.", ex.Message);
+        _categoryRepositoryMock.Verify(r => r.Update(It.IsAny<Category>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-5)]
+    [InlineData(1_000_000_001)]
+    public async Task SetBudget_Throws_WhenTheAmountIsNotValid(double amount)
+    {
+        var category = new Category { Id = Guid.NewGuid(), UserId = _userId, Name = "Comida", Type = TransactionType.Expense };
+        _categoryRepositoryMock.Setup(r => r.Get(category.Id)).ReturnsAsync(category);
+
+        await Assert.ThrowsAsync<ValidationException>(
+            () => _categoryService.SetBudget(category.Id, new CategoryBudgetRequest { MonthlyBudget = (decimal)amount }, _userId));
+        _categoryRepositoryMock.Verify(r => r.Update(It.IsAny<Category>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SetBudget_Throws_WhenCategoryBelongsToAnotherUser()
+    {
+        var category = new Category { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), Name = "Comida", Type = TransactionType.Expense };
+        _categoryRepositoryMock.Setup(r => r.Get(category.Id)).ReturnsAsync(category);
+
+        await Assert.ThrowsAsync<NotFoundException>(
+            () => _categoryService.SetBudget(category.Id, new CategoryBudgetRequest { MonthlyBudget = 100m }, _userId));
+        _categoryRepositoryMock.Verify(r => r.Update(It.IsAny<Category>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SetBudget_Throws_WhenCategoryDoesNotExist()
+    {
+        await Assert.ThrowsAsync<NotFoundException>(
+            () => _categoryService.SetBudget(Guid.NewGuid(), new CategoryBudgetRequest { MonthlyBudget = 100m }, _userId));
+    }
+
+    [Fact]
     public async Task Delete_Throws_WhenCategoryBelongsToAnotherUser()
     {
         var category = new Category { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), Name = "Comida" };

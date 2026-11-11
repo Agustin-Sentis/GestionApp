@@ -3,6 +3,7 @@ using GastosBackend.Application.dtos.Responses;
 using GastosBackend.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace GastosBackend.Presentation.Controllers
 {
@@ -36,6 +37,29 @@ namespace GastosBackend.Presentation.Controllers
         public async Task<ActionResult<SettingsResponse>> Update([FromBody] SettingsRequest request)
         {
             return Ok(await _settingsService.Update(request, UserId));
+        }
+
+        /// <summary>
+        /// This endpoint turns the budget alert mails on or off. Turning them on with an address that has not been confirmed
+        /// sends a confirmation mail (at most one per minute); the alerts start once its link is opened.
+        /// </summary>
+        [HttpPut("budget-alerts")]
+        public async Task<ActionResult<SettingsResponse>> SetBudgetAlerts([FromBody] BudgetAlertsRequest request)
+        {
+            return Ok(await _settingsService.SetBudgetAlerts(request, UserId));
+        }
+
+        /// <summary>
+        /// This endpoint confirms the address of an account with the token of the confirmation mail. It needs no session,
+        /// because the link may be opened on another device; it is rate limited like the sign in.
+        /// </summary>
+        [HttpPost("confirm-email")]
+        [AllowAnonymous]
+        [EnableRateLimiting(Program.AuthRateLimitPolicy)]
+        public async Task<ActionResult> ConfirmEmail([FromBody] ConfirmEmailRequest request)
+        {
+            await _settingsService.ConfirmEmail(request);
+            return NoContent();
         }
     }
 }

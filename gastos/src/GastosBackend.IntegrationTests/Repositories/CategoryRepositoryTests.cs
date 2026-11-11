@@ -120,6 +120,40 @@ public class CategoryRepositoryTests
     }
 
     [Fact]
+    public async Task MonthlyBudget_IsNullByDefault_AndCanBeSetAndRemoved()
+    {
+        var database = await MigratedDatabase();
+        var user = await database.AddUserAsync();
+        var category = await database.AddCategoryAsync(user.Id, "Comida");
+
+        await using (var check = database.CreateContext())
+        {
+            Assert.Null((await new CategoryRepository(check).Get(category.Id))!.MonthlyBudget);
+        }
+
+        await using (var set = database.CreateContext())
+        {
+            var repository = new CategoryRepository(set);
+            var loaded = (await repository.Get(category.Id))!;
+            loaded.MonthlyBudget = 300000.5m;
+            await repository.Update(loaded);
+        }
+
+        await using (var afterSet = database.CreateContext())
+        {
+            var repository = new CategoryRepository(afterSet);
+            var loaded = (await repository.Get(category.Id))!;
+            Assert.Equal(300000.5m, loaded.MonthlyBudget);
+
+            loaded.MonthlyBudget = null;
+            await repository.Update(loaded);
+        }
+
+        await using var afterRemove = database.CreateContext();
+        Assert.Null((await new CategoryRepository(afterRemove).Get(category.Id))!.MonthlyBudget);
+    }
+
+    [Fact]
     public async Task Delete_IsSoft_AndFreesTheName()
     {
         var database = await MigratedDatabase();

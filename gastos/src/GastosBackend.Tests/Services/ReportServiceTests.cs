@@ -2,6 +2,7 @@ using GastosBackend.Application.dtos.Responses;
 using GastosBackend.Application.Exceptions;
 using GastosBackend.Application.Interfaces;
 using GastosBackend.Application.Services;
+using GastosBackend.Domain.Entities;
 using GastosBackend.Domain.Enums;
 using Moq;
 
@@ -10,6 +11,7 @@ namespace GastosBackend.Tests.Services;
 public class ReportServiceTests
 {
     private readonly Mock<ITransactionRepository> _transactionRepositoryMock;
+    private readonly Mock<ICategoryRepository> _categoryRepositoryMock;
     private readonly Mock<IDolarApiService> _dolarApiServiceMock;
     private readonly ReportService _reportService;
     private readonly Guid _userId = Guid.NewGuid();
@@ -17,8 +19,13 @@ public class ReportServiceTests
     public ReportServiceTests()
     {
         _transactionRepositoryMock = new Mock<ITransactionRepository>();
+        _categoryRepositoryMock = new Mock<ICategoryRepository>();
         _dolarApiServiceMock = new Mock<IDolarApiService>();
-        _reportService = new ReportService(_transactionRepositoryMock.Object, _dolarApiServiceMock.Object);
+        _reportService = new ReportService(
+            _transactionRepositoryMock.Object, _categoryRepositoryMock.Object, _dolarApiServiceMock.Object);
+
+        // Nobody has budgets unless a test says so
+        _categoryRepositoryMock.Setup(r => r.GetAllByUser(_userId)).ReturnsAsync(new List<Category>());
 
         // A month nobody set up has no movements. The specific setups below take precedence over this one.
         _transactionRepositoryMock
@@ -52,6 +59,110 @@ public class ReportServiceTests
         {
             Name = name, Type = type, Currency = currency, Total = total, PendingUsd = pendingUsd, DollarType = dollar
         };
+
+    private void SetupCategories(params Category[] categories) =>
+        _categoryRepositoryMock.Setup(r => r.GetAllByUser(_userId)).ReturnsAsync(categories.ToList());
+
+    private static Category Budgeted(string name, decimal? budget, TransactionType type = TransactionType.Expense)
+        => new Category { Id = Guid.NewGuid(), Name = name, Type = type, MonthlyBudget = budget };
+
+    [Theory]
+    [InlineData(79, 79, BudgetStatus.Ok)]
+    [InlineData(79.99, 79.99, BudgetStatus.Ok)]
+    [InlineData(80, 80, BudgetStatus.Warning)]
+    [InlineData(99, 99, BudgetStatus.Warning)]
+    [InlineData(100, 100, BudgetStatus.Warning)] // spending exactly the whole budget is not over it yet
+    [InlineData(100.01, 100.01, BudgetStatus.Exceeded)]
+    [InlineData(101, 101, BudgetStatus.Exceeded)]
+    [InlineData(250, 250, BudgetStatus.Exceeded)]
+    public async Task GetMonthly_MeasuresTheBudgetAgainstWhatWasSpent(double spent, double expectedPercent, BudgetStatus expected)
+    {
+        SetupCategories(Budgeted("Comida", 100m));
+        SetupRows(Row("Comida", TransactionType.Expense, Currency.ARS, (decimal)spent));
+
+        var report = await _reportService.GetMonthly(2026, 11, _userId);
+
+        var budget = Assert.Single(report.Budgets);
+        Assert.Equal("Comida", budget.Name);
+        Assert.Equal(100m, budget.MonthlyBudget);
+        Assert.Equal((decimal)spent, budget.Spent);
+        Assert.Equal(Math.Round((decimal)expectedPercent, 1), budget.UsedPercent);
+        Assert.Equal(expected, budget.Status);
+    }
+
+    [Fact]
+    public async Task GetMonthly_ShowsABudgetedCategoryWithNoSpending_AsZero()
+    {
+        SetupCategories(Budgeted("Viajes", 50000m));
+        SetupRows(Row("Sueldo", TransactionType.Income, Currency.ARS, 1000m));
+
+        var report = await _reportService.GetMonthly(2026, 11, _userId);
+
+        var budget = Assert.Single(report.Budgets);
+        Assert.Equal(0m, budget.Spent);
+        Assert.Equal(0m, budget.UsedPercent);
+        Assert.Equal(BudgetStatus.Ok, budget.Status);
+        // The empty category does not turn into a slice of the charts
+        Assert.DoesNotContain(report.ByCategory, c => c.Name == "Viajes");
+    }
+
+    [Fact]
+    public async Task GetMonthly_LeavesOutCategoriesWithoutABudget_AndIncomeCategories()
+    {
+        SetupCategories(Budgeted("Comida", null), Budgeted("Sueldo", 1000m, TransactionType.Income), Budgeted("Gym", 10m));
+        SetupRows(Row("Comida", TransactionType.Expense, Currency.ARS, 400m));
+
+        var report = await _reportService.GetMonthly(2026, 11, _userId);
+
+        Assert.Equal("Gym", Assert.Single(report.Budgets).Name);
+    }
+
+    [Fact]
+    public async Task GetMonthly_CountsUsdSpendingConvertedToPesos_AgainstTheBudget()
+    {
+        // 90.000 of the USD row were already converted with the rate stored on each transaction
+        SetupCategories(Budgeted("Comida", 100000m));
+        SetupRows(
+            Row("Comida", TransactionType.Expense, Currency.ARS, 5000m),
+            Row("Comida", TransactionType.Expense, Currency.USD, 90000m, dollar: DollarType.Blue));
+
+        var report = await _reportService.GetMonthly(2026, 11, _userId);
+
+        var budget = Assert.Single(report.Budgets);
+        Assert.Equal(95000m, budget.Spent);
+        Assert.Equal(95m, budget.UsedPercent);
+        Assert.Equal(BudgetStatus.Warning, budget.Status);
+    }
+
+    [Fact]
+    public async Task GetMonthly_MeasuresWithWhatIsAvailable_WhenSomeUsdCouldNotBeConverted()
+    {
+        SetupCategories(Budgeted("Comida", 1000m));
+        SetupRows(Row("Comida", TransactionType.Expense, Currency.USD, 100m, pendingUsd: 50m));
+        SetupRateDown(DollarType.Official);
+
+        var report = await _reportService.GetMonthly(2026, 11, _userId);
+
+        Assert.True(report.HasUnconvertedUsd);
+        var budget = Assert.Single(report.Budgets);
+        Assert.Equal(100m, budget.Spent);
+        Assert.Equal(BudgetStatus.Ok, budget.Status);
+    }
+
+    [Fact]
+    public async Task GetMonthly_SortsTheBudgetsWithTheMostUrgentFirst()
+    {
+        SetupCategories(Budgeted("Ocio", 100m), Budgeted("Comida", 100m), Budgeted("Gym", 100m), Budgeted("Auto", 100m));
+        SetupRows(
+            Row("Ocio", TransactionType.Expense, Currency.ARS, 30m),     // ok
+            Row("Comida", TransactionType.Expense, Currency.ARS, 150m),  // exceeded
+            Row("Gym", TransactionType.Expense, Currency.ARS, 85m),      // warning
+            Row("Auto", TransactionType.Expense, Currency.ARS, 120m));   // exceeded, less than Comida
+
+        var report = await _reportService.GetMonthly(2026, 11, _userId);
+
+        Assert.Equal(new[] { "Comida", "Auto", "Gym", "Ocio" }, report.Budgets.Select(b => b.Name));
+    }
 
     [Theory]
     [InlineData(2026, 0)]

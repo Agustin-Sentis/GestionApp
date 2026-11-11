@@ -8,6 +8,8 @@ namespace GastosBackend.Infrastructure
         public DbSet<User> Users { get; set; }
         public DbSet<Category> Categories { get; set; }
         public DbSet<Transaction> Transactions { get; set; }
+        public DbSet<UserToken> UserTokens { get; set; }
+        public DbSet<BudgetAlert> BudgetAlerts { get; set; }
 
         public GastosDbContext(DbContextOptions<GastosDbContext> options) : base(options)
         {
@@ -30,6 +32,7 @@ namespace GastosBackend.Infrastructure
             modelBuilder.Entity<Category>(entity =>
             {
                 entity.Property(c => c.Name).HasMaxLength(60).IsRequired();
+                entity.Property(c => c.MonthlyBudget).HasPrecision(18, 2);
 
                 entity.HasOne<User>()
                     .WithMany()
@@ -60,6 +63,37 @@ namespace GastosBackend.Infrastructure
                     .OnDelete(DeleteBehavior.Restrict);
 
                 entity.HasIndex(t => new { t.UserId, t.Date });
+            });
+
+            modelBuilder.Entity<UserToken>(entity =>
+            {
+                entity.Property(t => t.TokenHash).HasMaxLength(64).IsRequired();
+
+                entity.HasOne<User>()
+                    .WithMany()
+                    .HasForeignKey(t => t.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(t => t.TokenHash);
+            });
+
+            modelBuilder.Entity<BudgetAlert>(entity =>
+            {
+                entity.HasOne<User>()
+                    .WithMany()
+                    .HasForeignKey(a => a.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne<Category>()
+                    .WithMany()
+                    .HasForeignKey(a => a.CategoryId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                // One mark per user, category, month and level. Soft-deleted marks (a mail that failed) do not count,
+                // so the alert can be sent again.
+                entity.HasIndex(a => new { a.UserId, a.CategoryId, a.Year, a.Month, a.Level })
+                    .IsUnique()
+                    .HasFilter("\"IsDeleted\" = false");
             });
         }
     }
