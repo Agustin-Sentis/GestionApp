@@ -201,6 +201,9 @@ namespace GastosBackend.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<DateTimeOffset?>("PasswordChangedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTimeOffset>("UpdateDate")
                         .HasColumnType("timestamp with time zone");
 

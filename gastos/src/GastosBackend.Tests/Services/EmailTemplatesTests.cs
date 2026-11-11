@@ -70,6 +70,46 @@ public class EmailTemplatesTests
     }
 
     [Fact]
+    public void PasswordReset_CarriesTheLink_InBothParts_AndSaysItLastsOneHourAndWorksOnce()
+    {
+        const string url = "https://dualbalance.example/restablecer-contrasena?token=abc_-123";
+
+        var mail = EmailTemplates.PasswordReset("ana@example.com", url);
+
+        Assert.Equal("Restablecé tu contraseña en DualBalance", mail.Subject);
+        Assert.Equal("ana@example.com", mail.To);
+        Assert.Contains(url, mail.TextBody);
+        Assert.Contains($"href=\"{url}\"", mail.HtmlBody);
+        Assert.Contains("1 hora", mail.TextBody);
+        Assert.Contains("una sola vez", mail.TextBody);
+        Assert.Contains("ignorá este mensaje", mail.TextBody);
+        Assert.Contains("tu contraseña no cambia", mail.TextBody);
+    }
+
+    [Fact]
+    public void PasswordReset_EncodesTheUrlInTheHtml()
+    {
+        var mail = EmailTemplates.PasswordReset("ana@example.com", "https://x.test/?a=1&b=\"2\"");
+
+        Assert.Contains("href=\"https://x.test/?a=1&amp;b=&quot;2&quot;\"", mail.HtmlBody);
+    }
+
+    [Theory]
+    [InlineData("https://dualbalance.example")]
+    [InlineData("https://dualbalance.example/")]
+    public void PasswordChanged_SaysWhatHappened_AndHowToRecoverTheAccount_WhateverTheTrailingSlash(string appUrl)
+    {
+        var mail = EmailTemplates.PasswordChanged("ana@example.com", appUrl);
+
+        Assert.Equal("Tu contraseña de DualBalance fue cambiada", mail.Subject);
+        Assert.Contains("se cerraron todas las sesiones", mail.TextBody);
+        Assert.Contains("Si no fuiste vos", mail.TextBody);
+        Assert.Contains("https://dualbalance.example/login?modo=recuperar", mail.TextBody);
+        Assert.Contains("href=\"https://dualbalance.example/login?modo=recuperar\"", mail.HtmlBody);
+        Assert.DoesNotContain("//login", mail.TextBody);
+    }
+
+    [Fact]
     public void Confirmation_EncodesTheUrlInTheHtml()
     {
         var mail = EmailTemplates.Confirmation("ana@example.com", "https://x.test/?a=1&b=\"2\"");

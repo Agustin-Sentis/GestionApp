@@ -75,6 +75,49 @@ public class UserTokenRepositoryTests
     }
 
     [Fact]
+    public async Task GetOpen_SeparatesThePurposes_OfTheSameHash()
+    {
+        var (database, user) = await Setup();
+        await using (var context = database.CreateContext())
+        {
+            context.UserTokens.Add(new UserToken
+            {
+                Id = Guid.NewGuid(), UserId = user.Id, Purpose = UserTokenPurpose.PasswordReset, TokenHash = "reset",
+                ExpiresAt = Now.AddHours(1), CreatedDate = Now
+            });
+            await context.SaveChangesAsync();
+        }
+
+        await using var check = database.CreateContext();
+        var repository = new UserTokenRepository(check);
+
+        Assert.NotNull(await repository.GetOpen(UserTokenPurpose.PasswordReset, "reset", Now));
+        Assert.Null(await repository.GetOpen(UserTokenPurpose.EmailConfirmation, "reset", Now));
+        Assert.Single(await repository.GetOpenByUser(user.Id, UserTokenPurpose.PasswordReset, Now));
+        Assert.Empty(await repository.GetOpenByUser(user.Id, UserTokenPurpose.EmailConfirmation, Now));
+    }
+
+    [Fact]
+    public async Task PasswordChangedAt_IsNullForExistingUsers_AndCanBeSet()
+    {
+        var (database, user) = await Setup();
+
+        await using (var read = database.CreateContext())
+        {
+            Assert.Null((await read.Users.FindAsync(user.Id))!.PasswordChangedAt);
+        }
+
+        await using (var write = database.CreateContext())
+        {
+            (await write.Users.FindAsync(user.Id))!.PasswordChangedAt = Now;
+            await write.SaveChangesAsync();
+        }
+
+        await using var check = database.CreateContext();
+        Assert.Equal(Now, (await check.Users.FindAsync(user.Id))!.PasswordChangedAt);
+    }
+
+    [Fact]
     public async Task GetOpenByUser_ReturnsOnlyThatUsersOpenTokens_NewestFirst()
     {
         var (database, user) = await Setup();

@@ -155,6 +155,42 @@ describe('requests', () => {
     await expect(api.settings.update('Blue')).rejects.toMatchObject({ status: 400, message: 'El tipo de dólar no es válido.' })
   })
 
+  it('asks for the recovery mail with POST and the email, with no session needed', async () => {
+    const fetchMock = mockFetch(() => ({ status: 204 }))
+
+    await api.forgotPassword('ana@example.com')
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toMatch(/\/api\/auth\/forgot-password$/)
+    expect(init?.method).toBe('POST')
+    expect(JSON.parse(String(init?.body))).toEqual({ email: 'ana@example.com' })
+    expect(headersOf(init)['authorization']).toBeUndefined()
+  })
+
+  it('raises the 429 of the server when the recovery is asked for too many times', async () => {
+    mockFetch(() => ({ status: 429, body: { error: 'Demasiados intentos. Probá de nuevo en unos minutos.' } }))
+
+    await expect(api.forgotPassword('a@x.com')).rejects.toMatchObject({ status: 429 })
+  })
+
+  it('sets the new password with POST, the token and the password, with no session needed', async () => {
+    const fetchMock = mockFetch(() => ({ status: 204 }))
+
+    await api.resetPassword('abc_-123', 'Nueva1234!')
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toMatch(/\/api\/auth\/reset-password$/)
+    expect(init?.method).toBe('POST')
+    expect(JSON.parse(String(init?.body))).toEqual({ token: 'abc_-123', newPassword: 'Nueva1234!' })
+    expect(headersOf(init)['authorization']).toBeUndefined()
+  })
+
+  it('raises the 400 with the text of the server when the link expired or the password breaks the rules', async () => {
+    mockFetch(() => ({ status: 400, body: { error: 'El enlace venció o ya se usó.' } }))
+
+    await expect(api.resetPassword('x', 'Nueva1234!')).rejects.toMatchObject({ status: 400, message: 'El enlace venció o ya se usó.' })
+  })
+
   it.each([true, false])('turns the budget alert mails %s with PUT, with the session', async (enabled) => {
     signIn()
     const fetchMock = mockFetch(() => ({ body: { budgetEmailAlerts: enabled } }))

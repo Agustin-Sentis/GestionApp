@@ -4,6 +4,7 @@ import type { Transaction } from '../api.ts'
 import { useAuth } from '../auth.tsx'
 import { MAX_MONTH, MIN_MONTH, addMonths, parseMonthValue } from '../format.ts'
 import { useListFilters } from '../useListFilters.ts'
+import { useSessionWatch } from '../useSessionWatch.ts'
 import Brand, { APP_NAME, BrandMark } from '../components/Brand.tsx'
 import BudgetPanel from '../components/BudgetPanel.tsx'
 import CategoryManager from '../components/CategoryManager.tsx'
@@ -42,6 +43,8 @@ function Panel({ id, current, children }: { id: View; current: View; children: R
 
 export default function DashboardPage() {
   const { logout } = useAuth()
+  // Leaves on its own when the server closed this session while the tab was in the background
+  useSessionWatch()
   // The transaction loaded in the side form, if any. Kept here because the list starts the edit and the form ends it.
   const [editing, setEditing] = useState<Transaction | null>(null)
   const [view, setView] = useState<View>('resumen')

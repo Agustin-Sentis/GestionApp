@@ -31,6 +31,17 @@ public class TestApiFactory : WebApplicationFactory<Program>
     /// <summary>Any other setting a test needs (for example the HSTS flag), applied last so it can override the defaults.</summary>
     protected virtual IReadOnlyDictionary<string, string> ExtraSettings => new Dictionary<string, string>();
 
+    /// <summary>
+    /// Decides which sessions are accepted. Every one by default: the real validator looks the user up in the database, and this
+    /// factory has none. A test about sessions overrides it.
+    /// </summary>
+    protected virtual IUserSessionValidator SessionValidator => new AcceptAllSessions();
+
+    private sealed class AcceptAllSessions : IUserSessionValidator
+    {
+        public Task<bool> IsValid(Guid userId, long? issuedAtUnixSeconds) => Task.FromResult(true);
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         // Run like production, so nothing depends on appsettings.Development.json: every setting a test needs is set below
@@ -55,18 +66,30 @@ public class TestApiFactory : WebApplicationFactory<Program>
 
             services.RemoveAll<IAuthService>();
             services.AddScoped<IAuthService, FakeAuthService>();
+
+            services.RemoveAll<IUserSessionValidator>();
+            services.AddSingleton(SessionValidator);
         });
     }
 
-    /// <summary>A valid JWT for any user, signed with the key the factory configured.</summary>
-    public static string CreateToken()
+    /// <summary>
+    /// A valid JWT, signed with the key the factory configured. For any new user unless <paramref name="userId"/> says which;
+    /// with the "iat" claim only when <paramref name="issuedAt"/> is given.
+    /// </summary>
+    public static string CreateToken(Guid? userId = null, DateTimeOffset? issuedAt = null)
     {
         var credentials = new SigningCredentials(
             new SymmetricSecurityKey(Encoding.UTF8.GetBytes(JwtKey)), SecurityAlgorithms.HmacSha256);
+        var claims = new List<Claim> { new(JwtRegisteredClaimNames.Sub, (userId ?? Guid.NewGuid()).ToString()) };
+        if (issuedAt != null)
+        {
+            claims.Add(new Claim(JwtRegisteredClaimNames.Iat, issuedAt.Value.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64));
+        }
+
         var token = new JwtSecurityToken(
             issuer: "Gastos",
             audience: "GastosClients",
-            claims: new[] { new Claim(JwtRegisteredClaimNames.Sub, Guid.NewGuid().ToString()) },
+            claims: claims,
             expires: DateTime.UtcNow.AddMinutes(5),
             signingCredentials: credentials);
         return new JwtSecurityTokenHandler().WriteToken(token);

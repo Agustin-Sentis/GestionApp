@@ -20,5 +20,11 @@ namespace GastosBackend.Domain.Entities
 
         /// <summary>When the user clicked the link of the confirmation mail. Null: the address is not confirmed, so no alert is sent.</summary>
         public DateTimeOffset? EmailConfirmedAt { get; set; }
+
+        /// <summary>
+        /// When the password was last reset. Sessions (JWTs) issued before this moment stop working: restoring an account must
+        /// also lock out whoever had been using it. Null while the password was never reset.
+        /// </summary>
+        public DateTimeOffset? PasswordChangedAt { get; set; }
     }
 }
