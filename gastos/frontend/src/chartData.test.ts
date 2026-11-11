@@ -11,7 +11,7 @@ function report(rows: CategoryTotal[]): MonthlyReport {
   return {
     year: 2026, month: 11, currency: 'ARS',
     income: totalOf('Income'), expense: totalOf('Expense'), balance: totalOf('Income') - totalOf('Expense'),
-    byCategory: rows, pendingConversions: [], hasUnconvertedUsd: false, previous: null,
+    byCategory: rows, budgets: [], pendingConversions: [], hasUnconvertedUsd: false, previous: null,
   }
 }
 
@@ -79,8 +79,8 @@ describe('colorOf', () => {
 describe('categoryOrder', () => {
   it('lists the names in the order given, in lower case', () => {
     expect(categoryOrder([
-      { id: '1', name: 'Comida', type: 'Expense' },
-      { id: '2', name: ' Sueldo ', type: 'Income' },
+      { id: '1', name: 'Comida', type: 'Expense', monthlyBudget: null },
+      { id: '2', name: ' Sueldo ', type: 'Income', monthlyBudget: null },
     ])).toEqual(['comida', 'sueldo'])
   })
 })

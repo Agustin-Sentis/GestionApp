@@ -11,10 +11,12 @@ using GastosBackend.Infrastructure.HttpResiliencePolicies;
 using GastosBackend.Infrastructure.Repository;
 using GastosBackend.Presentation.Middlewares;
 using GastosBackend.Presentation.OpenApi;
+using GastosBackend.Presentation.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using static GastosBackend.Infrastructure.HttpResiliencePolicies.HttpPollyPolicies;
@@ -45,6 +47,7 @@ builder.Services.AddDbContext<GastosDbContext>(
     options => options.UseNpgsql(builder.Configuration.GetConnectionString("GastosConnectionStrings")));
 builder.Services.AddHostedService<DatabaseMigrationService>();
 
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();
 
@@ -52,11 +55,15 @@ builder.Services.AddScoped(typeof(IBaseRepository<>), typeof(BaseRepository<>));
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
+builder.Services.AddScoped<IUserTokenRepository, UserTokenRepository>();
+builder.Services.AddScoped<IBudgetAlertRepository, BudgetAlertRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<ISettingsService, SettingsService>();
+builder.Services.AddScoped<IBudgetAlertService, BudgetAlertService>();
+builder.Services.AddSingleton<IBudgetAlertDispatcher, BudgetAlertDispatcher>();
 builder.Services.AddScoped<IPasswordHash, PasswordHash>();
 
 // External exchange rate API: named client + retry + circuit breaker + per-attempt timeout (Polly).
@@ -83,6 +90,39 @@ builder.Services.AddHttpClient(DolarApiService.HttpClientName, client =>
     .AddPolicyHandler(PollyResiliencePolicies.GetTimeoutPolicy(dolarApiResilienceConfiguration));
 
 builder.Services.AddScoped<IDolarApiService, DolarApiService>();
+
+// Mail: Brevo when a key and a sender are configured, otherwise mails are only logged (local development and tests).
+// A mail is slower than a rate lookup, so it gets more time per attempt. One retry: a lost answer can send it twice, which is rare and harmless.
+builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection("Email"));
+// The services in Application take the plain settings object (that layer does not depend on the options framework)
+builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<EmailOptions>>().Value);
+if (!string.IsNullOrWhiteSpace(builder.Configuration["Email:ApiKey"])
+    && !string.IsNullOrWhiteSpace(builder.Configuration["Email:SenderEmail"]))
+{
+    var emailResilienceConfiguration = new ApiClientConfigurationDTO()
+    {
+        RetryCount = 1,
+        RetryBaseDelayInMilliseconds = 500,
+        TimeoutInMilliseconds = 5000,
+        HandledEventsAllowedBeforeBreaking = 3,
+        DurationOfBreakInSeconds = 30
+    };
+
+    builder.Services.AddHttpClient(BrevoEmailSender.HttpClientName, client =>
+        {
+            client.BaseAddress = new Uri("https://api.brevo.com/");
+            client.Timeout = TimeSpan.FromSeconds(15);
+        })
+        .AddPolicyHandler(PollyResiliencePolicies.GetRetryPolicy(emailResilienceConfiguration))
+        .AddPolicyHandler(PollyResiliencePolicies.GetCircuitBreakerPolicy(emailResilienceConfiguration))
+        .AddPolicyHandler(PollyResiliencePolicies.GetTimeoutPolicy(emailResilienceConfiguration));
+
+    builder.Services.AddScoped<IEmailSender, BrevoEmailSender>();
+}
+else
+{
+    builder.Services.AddScoped<IEmailSender, NoOpEmailSender>();
+}
 
 // Autenticación JWT
 var jwtKey = builder.Configuration["Jwt:Key"];

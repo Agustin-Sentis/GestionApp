@@ -4,6 +4,7 @@ using GastosBackend.Application.Exceptions;
 using GastosBackend.Application.Interfaces;
 using GastosBackend.Application.Mapper;
 using GastosBackend.Application.Validations;
+using GastosBackend.Domain.Enums;
 
 namespace GastosBackend.Application.Services
 {
@@ -53,6 +54,33 @@ namespace GastosBackend.Application.Services
             }
 
             return newCategory.ToCategoryResponse();
+        }
+
+        public async Task<CategoryResponse> SetBudget(Guid id, CategoryBudgetRequest request, Guid userId)
+        {
+            var result = new CategoryBudgetRequestValidations().Validate(request);
+            if (!result.IsValid)
+            {
+                throw new ValidationException(result.ToString("~"));
+            }
+
+            var category = await _categoryRepository.Get(id);
+
+            if (category == null || category.UserId != userId)
+            {
+                throw new NotFoundException($"No se encontró ninguna categoría con el id '{id}'.");
+            }
+
+            // Removing a budget is always fine; setting one only makes sense for what is spent
+            if (request.MonthlyBudget != null && category.Type != TransactionType.Expense)
+            {
+                throw new ValidationException("Solo las categorías de gasto pueden tener presupuesto.");
+            }
+
+            category.MonthlyBudget = request.MonthlyBudget == null ? null : Math.Round(request.MonthlyBudget.Value, 2);
+            await _categoryRepository.Update(category);
+
+            return category.ToCategoryResponse();
         }
 
         public async Task Delete(Guid id, Guid userId)

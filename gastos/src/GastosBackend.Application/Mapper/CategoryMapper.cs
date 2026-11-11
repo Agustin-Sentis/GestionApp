@@ -12,7 +12,8 @@ namespace GastosBackend.Application.Mapper
             {
                 Id = category.Id,
                 Name = category.Name,
-                Type = category.Type
+                Type = category.Type,
+                MonthlyBudget = category.MonthlyBudget
             };
         }
 

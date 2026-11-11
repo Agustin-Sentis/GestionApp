@@ -9,6 +9,21 @@ namespace GastosBackend.Application.dtos.Responses
         public decimal Total { get; set; }
     }
 
+    /// <summary>How much of an expense category's monthly budget a month has used.</summary>
+    public class BudgetProgressResponse
+    {
+        public Guid CategoryId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public decimal MonthlyBudget { get; set; }
+
+        /// <summary>Spent in the month, in ARS, with the same rules as the rest of the report.</summary>
+        public decimal Spent { get; set; }
+
+        /// <summary>Spent as a percentage of the budget, with one decimal. Can be over 100.</summary>
+        public decimal UsedPercent { get; set; }
+        public BudgetStatus Status { get; set; }
+    }
+
     /// <summary>The totals of the month before the one reported, to compare against. Same rules as the report itself.</summary>
     public class PreviousMonthSummary
     {
@@ -38,6 +53,8 @@ namespace GastosBackend.Application.dtos.Responses
     /// PendingConversions lists the dollars whose current rate was needed for transactions that had none stored.
     /// HasUnconvertedUsd is true when some USD transactions were left out because no rate was available.
     /// Previous is the month before, for comparing; null when that month would be before the first one the app accepts (2000).
+    /// Budgets has one entry per expense category that has a monthly budget, including the ones with no spending this month,
+    /// the most urgent first. Past months are measured against the budget the category has now.
     /// </summary>
     public class MonthlyReportResponse
     {
@@ -48,6 +65,7 @@ namespace GastosBackend.Application.dtos.Responses
         public decimal Expense { get; set; }
         public decimal Balance { get; set; }
         public List<CategoryTotalResponse> ByCategory { get; set; } = new();
+        public List<BudgetProgressResponse> Budgets { get; set; } = new();
         public List<PendingConversion> PendingConversions { get; set; } = new();
         public bool HasUnconvertedUsd { get; set; }
         public PreviousMonthSummary? Previous { get; set; }

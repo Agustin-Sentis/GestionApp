@@ -1,6 +1,7 @@
 using GastosBackend.Application.dtos.Responses;
 using GastosBackend.Application.Exceptions;
 using GastosBackend.Application.Interfaces;
+using GastosBackend.Domain.Entities;
 using GastosBackend.Domain.Enums;
 
 namespace GastosBackend.Application.Services
@@ -10,12 +11,20 @@ namespace GastosBackend.Application.Services
         /// <summary>The first year the app accepts. The month before January of this year is not reported.</summary>
         private const int FirstYear = 2000;
 
+        /// <summary>From this share of the budget on, a category is "close to the limit".</summary>
+        private const decimal WarningShare = 0.8m;
+
         private readonly ITransactionRepository _transactionRepository;
+        private readonly ICategoryRepository _categoryRepository;
         private readonly IDolarApiService _dolarApiService;
 
-        public ReportService(ITransactionRepository transactionRepo, IDolarApiService dolarApiService)
+        public ReportService(
+            ITransactionRepository transactionRepo,
+            ICategoryRepository categoryRepo,
+            IDolarApiService dolarApiService)
         {
             _transactionRepository = transactionRepo;
+            _categoryRepository = categoryRepo;
             _dolarApiService = dolarApiService;
         }
 
@@ -44,6 +53,8 @@ namespace GastosBackend.Application.Services
             var income = current.ByCategory.Where(c => c.Type == TransactionType.Income).Sum(c => c.Total);
             var expense = current.ByCategory.Where(c => c.Type == TransactionType.Expense).Sum(c => c.Total);
 
+            var categories = await _categoryRepository.GetAllByUser(userId);
+
             return new MonthlyReportResponse
             {
                 Year = year,
@@ -53,10 +64,47 @@ namespace GastosBackend.Application.Services
                 Expense = expense,
                 Balance = income - expense,
                 ByCategory = current.ByCategory,
+                Budgets = BudgetProgress(categories, current.ByCategory),
                 PendingConversions = current.Pending,
                 HasUnconvertedUsd = current.Pending.Any(p => p.Rate == null),
                 Previous = previousRows == null ? null : await SummarizePreviousMonth(previousFrom, previousRows, rates)
             };
+        }
+
+        /// <summary>
+        /// The budget of each expense category that has one, measured against what the month spent on it. A category with no
+        /// spending is not in the totals, so it is built from the categories and counts as zero. The most urgent goes first.
+        /// </summary>
+        private static List<BudgetProgressResponse> BudgetProgress(List<Category> categories, List<CategoryTotalResponse> byCategory)
+        {
+            var spentByName = byCategory
+                .Where(c => c.Type == TransactionType.Expense)
+                .ToDictionary(c => c.Name, c => c.Total);
+
+            return categories
+                .Where(c => c.Type == TransactionType.Expense && c.MonthlyBudget is > 0)
+                .Select(c =>
+                {
+                    var budget = c.MonthlyBudget!.Value;
+                    var spent = spentByName.GetValueOrDefault(c.Name);
+
+                    return new BudgetProgressResponse
+                    {
+                        CategoryId = c.Id,
+                        Name = c.Name,
+                        MonthlyBudget = budget,
+                        Spent = spent,
+                        UsedPercent = Math.Round(spent / budget * 100, 1),
+                        // Spending exactly the whole budget is not over it yet
+                        Status = spent > budget ? BudgetStatus.Exceeded
+                            : spent >= budget * WarningShare ? BudgetStatus.Warning
+                            : BudgetStatus.Ok
+                    };
+                })
+                .OrderByDescending(b => b.Status)
+                .ThenByDescending(b => b.UsedPercent)
+                .ThenBy(b => b.Name)
+                .ToList();
         }
 
         /// <summary>The totals per category of a month, and which dollars needed today's rate to complete them.</summary>

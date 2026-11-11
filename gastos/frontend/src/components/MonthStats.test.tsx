@@ -9,7 +9,7 @@ import MonthStats from './MonthStats.tsx'
 function reportOf(overrides: Partial<MonthlyReport> = {}): MonthlyReport {
   return {
     year: 2026, month: 11, currency: 'ARS', income: 100000, expense: 70000, balance: 30000,
-    byCategory: [], pendingConversions: [], hasUnconvertedUsd: false, previous: null, ...overrides,
+    byCategory: [], budgets: [], pendingConversions: [], hasUnconvertedUsd: false, previous: null, ...overrides,
   }
 }
 

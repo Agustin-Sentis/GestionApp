@@ -5,6 +5,7 @@ import { useAuth } from '../auth.tsx'
 import { MAX_MONTH, MIN_MONTH, addMonths, parseMonthValue } from '../format.ts'
 import { useListFilters } from '../useListFilters.ts'
 import Brand, { APP_NAME, BrandMark } from '../components/Brand.tsx'
+import BudgetPanel from '../components/BudgetPanel.tsx'
 import CategoryManager from '../components/CategoryManager.tsx'
 import DollarTypeToggle from '../components/DollarTypeToggle.tsx'
 import MonthStats from '../components/MonthStats.tsx'
@@ -122,6 +123,7 @@ export default function DashboardPage() {
         <main className="grid min-h-0 flex-1 gap-3 p-3 sm:p-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,0.85fr)]">
           <Panel id="resumen" current={view}>
             <MonthlyReportView year={year} month={month} />
+            <BudgetPanel year={year} month={month} />
           </Panel>
 
           <Panel id="libro" current={view}>

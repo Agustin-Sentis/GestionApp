@@ -98,6 +98,8 @@ public class SchemaTests
             WHERE table_schema = 'public' AND column_name = 'CreatedDate' ORDER BY table_name
             """);
 
-        Assert.Equal(new[] { "Categories", "Transactions", "Users" }, tables.Select(r => (string)r[0]).ToArray());
+        Assert.Equal(
+            new[] { "BudgetAlerts", "Categories", "Transactions", "UserTokens", "Users" },
+            tables.Select(r => (string)r[0]).ToArray());
     }
 }

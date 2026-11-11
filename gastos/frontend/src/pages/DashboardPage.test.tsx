@@ -12,7 +12,7 @@ vi.mock('../components/ReportChart.tsx', () => ({ default: () => <div data-testi
 
 const report = {
   year: 2026, month: 11, currency: 'ARS', income: 0, expense: 1500, balance: -1500,
-  byCategory: [], pendingConversions: [], hasUnconvertedUsd: false, previous: null,
+  byCategory: [], budgets: [], pendingConversions: [], hasUnconvertedUsd: false, previous: null,
 }
 
 function setup(route = '/?mes=2026-11', extraRoutes: Parameters<typeof mockApi>[0] = {}) {

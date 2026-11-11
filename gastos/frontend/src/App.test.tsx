@@ -19,7 +19,7 @@ function mockDashboardApi() {
     'GET /api/category': () => ({ body: [food] }),
     'GET /api/report/monthly': () => ({
       body: {
-        year: 2026, month: 11, currency: 'ARS', income: 0, expense: 0, balance: 0, byCategory: [],
+        year: 2026, month: 11, currency: 'ARS', income: 0, expense: 0, balance: 0, byCategory: [], budgets: [],
         pendingConversions: [], hasUnconvertedUsd: false, previous: null,
       },
     }),

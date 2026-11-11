@@ -50,6 +50,20 @@ public class CategoryControllerTests
     }
 
     [Fact]
+    public async Task SetBudget_PassesTheAuthenticatedUserToTheService()
+    {
+        var id = Guid.NewGuid();
+        var request = new CategoryBudgetRequest { MonthlyBudget = 300000m };
+        _categoryServiceMock.Setup(s => s.SetBudget(id, request, UserId))
+            .ReturnsAsync(new CategoryResponse { Id = id, Name = "Comida", Type = TransactionType.Expense, MonthlyBudget = 300000m });
+
+        var result = await _controller.SetBudget(id, request);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(300000m, Assert.IsType<CategoryResponse>(ok.Value).MonthlyBudget);
+    }
+
+    [Fact]
     public async Task Delete_ReturnsNoContent()
     {
         var id = Guid.NewGuid();
