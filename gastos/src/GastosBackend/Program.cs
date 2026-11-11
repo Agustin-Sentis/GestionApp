@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -62,7 +63,10 @@ builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<ISettingsService, SettingsService>();
+builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
+builder.Services.AddScoped<IUserSessionValidator, UserSessionValidator>();
 builder.Services.AddScoped<IBudgetAlertService, BudgetAlertService>();
+builder.Services.AddSingleton<IBackgroundRunner, BackgroundRunner>();
 builder.Services.AddSingleton<IBudgetAlertDispatcher, BudgetAlertDispatcher>();
 builder.Services.AddScoped<IPasswordHash, PasswordHash>();
 
@@ -146,6 +150,23 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
             ClockSkew = TimeSpan.FromSeconds(30)
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            // Runs after the signature and the expiry were checked. A JWT cannot be revoked by itself, so the account must still
+            // exist and the session must not be older than the last password reset (one lookup by primary key per request).
+            OnTokenValidated = async context =>
+            {
+                var userId = context.Principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                long? issuedAt = long.TryParse(context.Principal?.FindFirst("iat")?.Value, out var iat) ? iat : null;
+
+                var validator = context.HttpContext.RequestServices.GetRequiredService<IUserSessionValidator>();
+                if (!Guid.TryParse(userId, out var id) || !await validator.IsValid(id, issuedAt))
+                {
+                    context.Fail("La sesión ya no es válida.");
+                }
+            }
         };
     });
 

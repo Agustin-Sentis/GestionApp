@@ -30,6 +30,44 @@ namespace GastosBackend.Application.Services
             return new EmailMessage(to, subject, text, html);
         }
 
+        public static EmailMessage PasswordReset(string to, string resetUrl)
+        {
+            const string subject = "Restablecé tu contraseña en DualBalance";
+            var text =
+                "Pediste restablecer la contraseña de tu cuenta.\n\n" +
+                "Para elegir una nueva, abrí este enlace (vale 1 hora y se puede usar una sola vez):\n" +
+                $"{resetUrl}\n\n" +
+                "Si no fuiste vos, ignorá este mensaje: tu contraseña no cambia.";
+
+            var html = Layout(
+                "<p>Pediste restablecer la contraseña de tu cuenta.</p>" +
+                "<p>Para elegir una nueva, abrí este enlace (vale 1 hora y se puede usar una sola vez):</p>" +
+                $"<p><a href=\"{Encode(resetUrl)}\">Elegir una contraseña nueva</a></p>" +
+                "<p style=\"color:#5b6472\">Si no fuiste vos, ignorá este mensaje: tu contraseña no cambia.</p>");
+
+            return new EmailMessage(to, subject, text, html);
+        }
+
+        /// <param name="appUrl">The public address of the app: the link to recover the account is built from it.</param>
+        public static EmailMessage PasswordChanged(string to, string appUrl)
+        {
+            const string subject = "Tu contraseña de DualBalance fue cambiada";
+            var recoverUrl = $"{appUrl.TrimEnd('/')}/login?modo=recuperar";
+            var text =
+                "La contraseña de tu cuenta se acaba de cambiar, y se cerraron todas las sesiones que estaban abiertas.\n\n" +
+                "Si fuiste vos, no tenés que hacer nada.\n\n" +
+                "Si no fuiste vos, alguien tiene acceso a tu correo. Recuperá la cuenta desde este enlace y revisá también la seguridad de tu correo:\n" +
+                recoverUrl;
+
+            var html = Layout(
+                "<p>La contraseña de tu cuenta se acaba de cambiar, y se cerraron todas las sesiones que estaban abiertas.</p>" +
+                "<p>Si fuiste vos, no tenés que hacer nada.</p>" +
+                "<p><strong>Si no fuiste vos</strong>, alguien tiene acceso a tu correo. Recuperá la cuenta y revisá también la seguridad de tu correo:</p>" +
+                $"<p><a href=\"{Encode(recoverUrl)}\">Recuperar mi cuenta</a></p>");
+
+            return new EmailMessage(to, subject, text, html);
+        }
+
         public static EmailMessage BudgetAlert(
             string to, string categoryName, decimal spent, decimal budget, decimal usedPercent, BudgetStatus level, string appUrl)
         {

@@ -54,6 +54,19 @@ public class AuthServiceTests
     }
 
     [Fact]
+    public async Task SignIn_Token_CarriesTheMomentItWasIssued()
+    {
+        _userRepositoryMock.Setup(r => r.GetByEmail("demo@demo.com")).ReturnsAsync(ExistingUser());
+        var before = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        var result = await _authService.SignIn(new SignInRequest { Email = "demo@demo.com", Password = Password });
+
+        var iat = long.Parse(new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(result.Token).Claims
+            .Single(c => c.Type == "iat").Value);
+        Assert.InRange(iat, before, before + 5);
+    }
+
+    [Fact]
     public async Task SignIn_Throws_WhenTheUserDoesNotExist()
     {
         _userRepositoryMock.Setup(r => r.GetByEmail(It.IsAny<string>())).ReturnsAsync((User?)null);
