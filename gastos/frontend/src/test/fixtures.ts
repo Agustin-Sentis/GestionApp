@@ -1,7 +1,12 @@
-import type { Category, PagedResult, Transaction } from '../api.ts'
+import type { Category, PagedResult, Settings, Transaction } from '../api.ts'
 
-export const food: Category = { id: '3f2b1c9e-7a4d-4e8b-9c1d-2a5b6c7d8e9f', name: 'Comida', type: 'Expense' }
-export const salary: Category = { id: '8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d', name: 'Sueldo', type: 'Income' }
+/** The settings of a user who has not touched the budget alerts; pass only what a test cares about. */
+export function settings(overrides: Partial<Settings> = {}): Settings {
+  return { dollarType: 'Official', email: 'ana@example.com', budgetEmailAlerts: false, emailConfirmed: false, ...overrides }
+}
+
+export const food: Category = { id: '3f2b1c9e-7a4d-4e8b-9c1d-2a5b6c7d8e9f', name: 'Comida', type: 'Expense', monthlyBudget: null }
+export const salary: Category = { id: '8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d', name: 'Sueldo', type: 'Income', monthlyBudget: null }
 
 /** A valid ARS expense; pass only what a test cares about. */
 export function transaction(overrides: Partial<Transaction> = {}): Transaction {

@@ -63,6 +63,7 @@ describe('loading states', () => {
 
     response.resolve({
       year: 2026, month: 11, currency: 'ARS', income: 1000, expense: 400, balance: 600,
+      budgets: [],
       byCategory: [
         { name: 'Sueldo', type: 'Income', total: 1000 },
         { name: 'Comida', type: 'Expense', total: 400 },

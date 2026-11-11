@@ -16,6 +16,12 @@ export const DOLLAR_TYPES: readonly DollarType[] = ['Official', 'Blue', 'Mep']
 export interface Settings {
   /** The dollar new USD movements are saved with. The ones already saved keep the dollar they were saved with. */
   dollarType: DollarType
+  /** The address of the account: where the confirmation mail and the budget alerts go. */
+  email: string
+  /** The user asked for a mail when a budget reaches 80% or is exceeded. */
+  budgetEmailAlerts: boolean
+  /** The user opened the link of the confirmation mail. Until then no alert is sent, even with the alerts on. */
+  emailConfirmed: boolean
 }
 
 export interface AuthResponse {
@@ -29,6 +35,8 @@ export interface Category {
   id: string
   name: string
   type: TransactionType
+  /** What the user plans to spend on it each month, in pesos. Null: no budget. Only expense categories can have one. */
+  monthlyBudget: number | null
 }
 
 export interface Transaction {
@@ -65,6 +73,21 @@ export interface CategoryTotal {
   total: number
 }
 
+/** How much of a category's monthly budget has been spent: under 80%, 80% up to the whole budget, or over it. */
+export type BudgetStatus = 'Ok' | 'Warning' | 'Exceeded'
+
+/** The budget of an expense category measured against what a month spent on it. */
+export interface BudgetProgress {
+  categoryId: string
+  name: string
+  monthlyBudget: number
+  /** Spent in the month, in pesos, with the same rules as the rest of the report. */
+  spent: number
+  /** Spent as a percentage of the budget, one decimal. Can be over 100. */
+  usedPercent: number
+  status: BudgetStatus
+}
+
 /** The totals of the month before, to compare the month on screen against. */
 export interface PreviousMonth {
   year: number
@@ -95,6 +118,11 @@ export interface MonthlyReport {
   expense: number
   balance: number
   byCategory: CategoryTotal[]
+  /**
+   * One per expense category that has a budget (also the ones with nothing spent this month), the most urgent first.
+   * A past month is measured against the budget the category has now.
+   */
+  budgets: BudgetProgress[]
   /** The dollars whose today's rate was needed to complete the totals, for movements that were saved without their rate. */
   pendingConversions: PendingConversion[]
   /** True when some USD transactions were left out of the totals because no rate was available. */
@@ -248,6 +276,9 @@ export const api = {
     list: () => request<Category[]>('/api/category'),
     create: (name: string, type: TransactionType) =>
       request<Category>('/api/category', post({ name, type })),
+    /** Sets the monthly budget of an expense category, or removes it with null. */
+    setBudget: (id: string, monthlyBudget: number | null) =>
+      request<Category>(`/api/category/${id}/budget`, put({ monthlyBudget })),
     remove: (id: string) => request<void>(`/api/category/${id}`, { method: 'DELETE' }),
   },
 
@@ -269,6 +300,13 @@ export const api = {
   settings: {
     get: () => request<Settings>('/api/settings'),
     update: (dollarType: DollarType) => request<Settings>('/api/settings', put({ dollarType })),
+    /**
+     * Turns the budget alert mails on or off. Turning them on with an unconfirmed address sends the confirmation mail
+     * (at most one per minute); the server answers 503 when that mail could not be sent, and then nothing is saved.
+     */
+    setBudgetAlerts: (enabled: boolean) => request<Settings>('/api/settings/budget-alerts', put({ enabled })),
+    /** Confirms the address with the token of the mail's link. Needs no session. A 400 means the link expired or was used. */
+    confirmEmail: (token: string) => request<void>('/api/settings/confirm-email', post({ token })),
   },
 
   reports: {

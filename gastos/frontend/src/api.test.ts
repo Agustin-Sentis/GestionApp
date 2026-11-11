@@ -155,6 +155,46 @@ describe('requests', () => {
     await expect(api.settings.update('Blue')).rejects.toMatchObject({ status: 400, message: 'El tipo de dólar no es válido.' })
   })
 
+  it.each([true, false])('turns the budget alert mails %s with PUT, with the session', async (enabled) => {
+    signIn()
+    const fetchMock = mockFetch(() => ({ body: { budgetEmailAlerts: enabled } }))
+
+    const saved = await api.settings.setBudgetAlerts(enabled)
+
+    expect(saved).toEqual({ budgetEmailAlerts: enabled })
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toMatch(/\/api\/settings\/budget-alerts$/)
+    expect(init?.method).toBe('PUT')
+    expect(JSON.parse(String(init?.body))).toEqual({ enabled })
+    expect(headersOf(init)['authorization']).toBe('Bearer jwt-token')
+  })
+
+  it('raises the 503 of the server when the confirmation mail could not be sent', async () => {
+    signIn()
+    mockFetch(() => ({ status: 503, body: { error: 'No se pudo enviar el correo.' } }))
+
+    await expect(api.settings.setBudgetAlerts(true)).rejects.toMatchObject({ status: 503, message: 'No se pudo enviar el correo.' })
+  })
+
+  it('confirms the email with POST and the token, with no session needed', async () => {
+    // Nobody signed in: the link of the mail may be opened on another device
+    const fetchMock = mockFetch(() => ({ status: 204 }))
+
+    await api.settings.confirmEmail('abc_-123')
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toMatch(/\/api\/settings\/confirm-email$/)
+    expect(init?.method).toBe('POST')
+    expect(JSON.parse(String(init?.body))).toEqual({ token: 'abc_-123' })
+    expect(headersOf(init)['authorization']).toBeUndefined()
+  })
+
+  it('raises the 400 when the confirmation link expired or was used', async () => {
+    mockFetch(() => ({ status: 400, body: { error: 'El enlace venció o ya se usó.' } }))
+
+    await expect(api.settings.confirmEmail('x')).rejects.toMatchObject({ status: 400, message: 'El enlace venció o ya se usó.' })
+  })
+
   it('fetches one transaction by id', async () => {
     const fetchMock = mockFetch(() => ({ body: { id: 't1', exchangeRate: 1570, arsAmount: 15700 } }))
 
