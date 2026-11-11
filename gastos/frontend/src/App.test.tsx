@@ -61,6 +61,26 @@ describe('App routes', () => {
     expect(await screen.findByRole('button', { name: 'Salir' })).toBeInTheDocument()
   })
 
+  // The links of the mails are opened in whatever browser the user clicks them in, which may be one that is signed in
+  it.each([
+    ['/restablecer-contrasena?token=abc', 'Nueva contraseña'],
+    ['/confirmar-correo?token=abc', 'Confirmar correo'],
+  ])('shows %s even to someone who is already signed in, and not the dashboard', async (route, title) => {
+    signedIn()
+    mockDashboardApi()
+
+    renderWithProviders(<App />, { route })
+
+    expect(await screen.findByRole('heading', { name: title })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Salir' })).not.toBeInTheDocument()
+  })
+
+  it('shows the reset page to someone who has not signed in', () => {
+    renderWithProviders(<App />, { route: '/restablecer-contrasena?token=abc' })
+
+    expect(screen.getByRole('heading', { name: 'Nueva contraseña' })).toBeInTheDocument()
+  })
+
   it('sends an address that does not exist to the root', () => {
     renderWithProviders(<App />, { route: '/no-existe' })
 

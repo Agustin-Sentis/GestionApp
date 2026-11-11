@@ -1,5 +1,8 @@
 const API_URL: string = import.meta.env.VITE_API_URL ?? 'http://localhost:8080'
 
+/** What the server says when a mail link expired or was already used (the same text for every kind of link). */
+export const LINK_EXPIRED_MESSAGE = 'El enlace venció o ya se usó.'
+
 // ---------- Tipos (espejo de los DTOs del backend; los enums viajan como texto) ----------
 
 export type TransactionType = 'Expense' | 'Income'
@@ -271,6 +274,19 @@ export const api = {
 
   signUp: (email: string, password: string) =>
     request<AuthResponse>('/api/auth/signup', post({ email, password })),
+
+  /**
+   * Asks for the recovery mail. The server answers the same (204) whether the email has an account or not, so a success here
+   * says nothing about the account: the screen must not either. A 400 means the email has no valid format; 429, too many tries.
+   */
+  forgotPassword: (email: string) => request<void>('/api/auth/forgot-password', post({ email })),
+
+  /**
+   * Sets a new password with the token of the recovery mail. It does not sign anyone in. A 400 is either the link (expired or
+   * used: LINK_EXPIRED_MESSAGE) or a password that breaks the rules (the message says which; the link is still good then).
+   */
+  resetPassword: (token: string, newPassword: string) =>
+    request<void>('/api/auth/reset-password', post({ token, newPassword })),
 
   categories: {
     list: () => request<Category[]>('/api/category'),

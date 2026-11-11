@@ -5,6 +5,7 @@ import AuthPage from './pages/AuthPage.tsx'
 import ConfirmEmailPage from './pages/ConfirmEmailPage.tsx'
 import DashboardPage from './pages/DashboardPage.tsx'
 import LandingPage from './pages/LandingPage.tsx'
+import ResetPasswordPage from './pages/ResetPasswordPage.tsx'
 
 function PublicOnly({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
@@ -26,6 +27,7 @@ export default function App() {
       <Route path="/login" element={<PublicOnly><AuthPage /></PublicOnly>} />
       {/* Public and open to anyone: the link of the confirmation mail may be opened on another device */}
       <Route path="/confirmar-correo" element={<ConfirmEmailPage />} />
+      <Route path="/restablecer-contrasena" element={<ResetPasswordPage />} />
       <Route path="/" element={<Home />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
