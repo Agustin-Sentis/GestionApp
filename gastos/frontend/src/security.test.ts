@@ -34,17 +34,18 @@ const csp = policy(headerValue('Content-Security-Policy-Report-Only') ?? headerV
 
 describe('index.html', () => {
   it('has no inline script: every script is a file of the app', () => {
-    const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]
+    // A real HTML parser, not a regular expression: it reads every way a script tag can be written
+    const scripts = [...new DOMParser().parseFromString(html, 'text/html').querySelectorAll('script')]
 
     expect(scripts.length).toBeGreaterThan(0)
-    for (const [, attributes, body] of scripts) {
-      expect(attributes, 'a script without src is inline').toMatch(/\bsrc=/)
-      expect(body.trim()).toBe('')
+    for (const script of scripts) {
+      expect(script.hasAttribute('src'), 'a script without src is inline').toBe(true)
+      expect(script.textContent?.trim()).toBe('')
     }
   })
 
   it('loads the theme before the first paint, from a file in public/', () => {
-    expect(html).toMatch(/<script src="\/theme-init\.js"><\/script>/)
+    expect(new DOMParser().parseFromString(html, 'text/html').querySelector('head script[src="/theme-init.js"]')).not.toBeNull()
     expect(existsSync('public/theme-init.js')).toBe(true)
   })
 })

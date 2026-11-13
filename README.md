@@ -33,6 +33,7 @@ Proyecto de portfolio: backend en **.NET 10** con Clean Architecture y frontend 
 - **Verificación en dos pasos** (opcional): además de la contraseña, al entrar se pide el código de 6 dígitos de una app autenticadora (Google Authenticator, Authy, 1Password…). Se activa escaneando un QR, y trae 10 códigos de recuperación de un solo uso por si se pierde el celular. Tras 5 códigos incorrectos seguidos se bloquea 15 minutos, y restablecer la contraseña por mail no la saltea.
 - **Ajustes**: un botón flotante abre una ventana con la seguridad (la verificación en dos pasos) y las notificaciones (el estado del correo y los avisos de presupuesto).
 - Cada usuario ve y modifica únicamente sus propios datos.
+- **Seguridad**: la API está cerrada por defecto (cada endpoint declara si es público y un test lo vigila), todo el acceso a la base es parametrizado (sin SQL armado a mano), la API manda cabeceras de seguridad, el panel vive en una ruta protegida (`/panel`) y el frontend lleva una política de contenido (CSP) que limita de dónde se carga todo. Detalle en [`gastos/README.md`](gastos/README.md#seguridad).
 
 ## 🧱 Stack
 
@@ -137,6 +138,7 @@ Es un proyecto en evolución. Lo que tengo identificado para seguir:
 - [x] Recuperación de contraseña por mail (enlace de 1 hora y de un solo uso). Al restablecerla se cierran todas las sesiones abiertas.
 - [x] Confirmar el correo al registrarse: mail de confirmación al crear la cuenta, aviso en el encabezado mientras falte (sin bloquear el acceso) y forma de reenviarlo o corregir el correo si hubo un error de tipeo.
 - [x] Verificación en dos pasos (TOTP con Google Authenticator y códigos de recuperación), opcional, con bloqueo temporal tras 5 códigos incorrectos. Las claves que cifran los secretos viven en la base de datos.
+- [x] Endurecimiento de seguridad: API cerrada por defecto, cabeceras de seguridad, guard de rutas en el frontend (`/panel`) y CSP. La CSP arranca en modo "solo reportar": pasarla a bloqueo cuando la consola del navegador no muestre violaciones (ver `gastos/README.md`).
 - [ ] Refresh tokens.
 
 **Calidad e infraestructura**

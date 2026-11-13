@@ -175,6 +175,16 @@ En `docker compose` se cargan desde `BREVO_API_KEY`, `EMAIL_SENDER` y `FRONTEND_
 
 > **La clave de Brevo vence a los 90 días sin uso** (además de la fecha de vencimiento que se elige al crearla). En una app con poco tráfico los avisos pueden dejar de funcionar en silencio. Si dejan de llegar, mirá primero el log de la API: un 401 de Brevo (`Brevo refused the email …: 401`) significa clave vencida o revocada; se crea una nueva y se actualiza `Email__ApiKey`.
 
+## Seguridad
+
+- **Inyección SQL:** todo acceso a la base pasa por EF Core con LINQ, que manda los valores como parámetros. No hay SQL armado con texto del usuario (el único SQL crudo está en los helpers de los tests de integración, con texto fijo). La búsqueda por nota usa `ILike` con carácter de escape, así que `%` y `_` no actúan como comodines. Los textos tienen tope de largo.
+- **La API está cerrada por defecto:** una política por defecto exige un usuario con sesión en cualquier endpoint que no diga otra cosa. Los públicos se marcan a propósito con `[AllowAnonymous]` (registro, login, verificación 2FA, recuperación, confirmar correo, `/api/health` y los docs cuando están activados). `EndpointAuthorizationTests` falla si una acción no declara si es privada o pública, y lista exactamente cuáles son públicas: un endpoint público nuevo hay que agregarlo ahí a propósito. Consecuencia: una ruta que no existe responde 401 (no 404) a quien no tiene sesión, así no se puede averiguar qué rutas hay.
+- **Cabeceras de la API** (`SecurityHeadersMiddleware`, en `/api/*`): `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` y `Cache-Control: no-store` (nada privado, como un token, queda en una caché). No se aplican a `/scalar`, que trae sus propios scripts.
+- **Frontend:** `RequireAuth` protege `/panel`: sin sesión manda a `/login` y, al entrar, vuelve a la misma página con su mes y filtros (solo a rutas internas: `returnPathFrom` descarta cualquier destino que pueda salir de la app). `/` sigue funcionando: sin sesión muestra la landing, con sesión redirige a `/panel` conservando el `?mes=…`. **Es experiencia, no seguridad:** lo que protege los datos es la API.
+- **CSP (Content-Security-Policy)** en `frontend/vercel.json`: solo scripts, fuentes e imágenes de la propia app, y llamadas únicamente a la API (`https://gestionapp-j0j4.onrender.com`). El script del tema es un archivo (`public/theme-init.js`) para no necesitar `unsafe-inline` en scripts; los estilos sí lo permiten (los gráficos lo usan). **Hoy va como `Content-Security-Policy-Report-Only`**: el navegador avisa en la consola de las violaciones pero no bloquea nada. Para pasarla a bloqueo: navegá la app con DevTools abierto (pestaña Consola), y si no aparece ningún aviso `Content-Security-Policy-Report-Only`, renombrá la cabecera a `Content-Security-Policy` en `vercel.json`. Si cambia el dominio de la API hay que actualizarlo ahí también (y en `src/security.test.ts`). El `nginx.conf` del Docker local no la manda.
+- **Ya estaba:** JWT con emisor, audiencia, firma y vencimiento, sesiones cerradas al restablecer la contraseña, BCrypt, 2FA opcional con bloqueo, límite de intentos en `/api/auth/*`, CORS de un solo origen, HSTS opcional, `npm audit` sin vulnerabilidades y CodeQL.
+- **Límites conocidos:** el token vive en `localStorage` (por eso importa la CSP), no hay refresh tokens (la sesión dura 60 minutos), el registro todavía delata qué correos existen y no hay bloqueo de cuenta por intentos de contraseña (sí por códigos 2FA).
+
 ## Tests
 
 ### Frontend
@@ -226,7 +236,7 @@ Variables que usa la API en contenedor: `ConnectionStrings__GastosConnectionStri
 
 Cualquier host que corra contenedores sirve (Fly.io, Railway, Render, un VPS). Necesitás una base PostgreSQL y definir `ConnectionStrings__GastosConnectionStrings`, `Jwt__Key` (32+ caracteres) y `Cors__AllowedOrigin` con la URL del frontend. El frontend se compila con `VITE_API_URL` apuntando a la API pública.
 
-`frontend/vercel.json` redirige cualquier ruta que no sea un archivo a `index.html` (React Router: `/login` tiene que funcionar al refrescar) y agrega cabeceras de seguridad básicas.
+`frontend/vercel.json` redirige cualquier ruta que no sea un archivo a `index.html` (React Router: `/login` tiene que funcionar al refrescar) y agrega cabeceras de seguridad (`nosniff`, `X-Frame-Options`, `Referrer-Policy` y una CSP; ver "Seguridad").
 
 ### Variables de entorno en producción (Render)
 
