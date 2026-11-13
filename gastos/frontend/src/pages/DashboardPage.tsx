@@ -46,7 +46,7 @@ function Panel({ id, current, children }: { id: View; current: View; children: R
 }
 
 export default function DashboardPage() {
-  const { logout } = useAuth()
+  const { signOut } = useAuth()
   // Leaves on its own when the server closed this session while the tab was in the background
   useSessionWatch()
   // The transaction loaded in the side form, if any. Kept here because the list starts the edit and the form ends it.
@@ -133,7 +133,7 @@ export default function DashboardPage() {
             <EmailStatusChip />
             <DollarTypeToggle />
             <ThemeToggle />
-            <button type="button" className="btn" onClick={logout}>Salir</button>
+            <button type="button" className="btn" onClick={signOut}>Salir</button>
           </div>
         </header>
 

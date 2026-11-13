@@ -14,6 +14,7 @@ using GastosBackend.Presentation.Middlewares;
 using GastosBackend.Presentation.OpenApi;
 using GastosBackend.Presentation.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
@@ -148,7 +149,12 @@ if (string.IsNullOrEmpty(jwtKey) || jwtKey.Length < 32)
         "Jwt:Key debe tener al menos 32 caracteres (user-secrets en desarrollo, variable Jwt__Key en producción).");
 }
 
-builder.Services.AddAuthorization();
+// Closed by default: an endpoint without [Authorize] or [AllowAnonymous] asks for a signed-in user, so a forgotten attribute
+// can never leave data open. Public endpoints say so with [AllowAnonymous] (EndpointAuthorizationTests lists them).
+builder.Services.AddAuthorization(options =>
+{
+    options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
+});
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -254,9 +260,12 @@ if (builder.Configuration.GetValue("Https:Hsts:Enabled", false))
 // API docs list every endpoint, so they are off by default and turned on explicitly (Development, docker compose)
 if (builder.Configuration.GetValue("Docs:Enabled", false))
 {
-    app.MapOpenApi();            // /openapi/v1.json
-    app.MapScalarApiReference(); // /scalar
+    // Public on purpose (the docs are only on when explicitly enabled), and the fallback policy would otherwise close them
+    app.MapOpenApi().AllowAnonymous();            // /openapi/v1.json
+    app.MapScalarApiReference().AllowAnonymous(); // /scalar
 }
+
+app.UseMiddleware<SecurityHeadersMiddleware>();
 
 app.UseRouting();
 

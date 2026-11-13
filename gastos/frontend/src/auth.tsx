@@ -14,7 +14,12 @@ interface AuthContextValue {
   /** The second step of the sign in: the challenge and a code (of the app, or a recovery one) start the session. */
   verifyTwoFactor: (challengeToken: string, code: string) => Promise<void>
   signUp: (email: string, password: string) => Promise<void>
+  /** Closes the session (also what the API's 401 does). The guard sends the visitor to the sign-in form. */
   logout: () => void
+  /** The user chose to leave ("Salir"): closes the session and the guard sends the visitor to the landing page instead. */
+  signOut: () => void
+  /** True from the moment the user chose to leave until the next session starts. Read by the guard. */
+  signedOutByChoice: boolean
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -23,8 +28,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const [isAuthenticated, setIsAuthenticated] = useState(() => loadSession() !== null)
 
+  const [signedOutByChoice, setSignedOutByChoice] = useState(false)
+
   const startSession = useCallback((res: AuthResponse) => {
     saveSession({ token: res.token, expiresAtUtc: res.expiresAtUtc })
+    setSignedOutByChoice(false)
     setIsAuthenticated(true)
   }, [])
 
@@ -33,6 +41,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryClient.clear() // no dejar datos de un usuario en caché para el siguiente
     setIsAuthenticated(false)
   }, [queryClient])
+
+  const signOut = useCallback(() => {
+    setSignedOutByChoice(true)
+    logout()
+  }, [logout])
 
   // Si el backend responde 401 (token vencido o inválido), se cierra la sesión
   useEffect(() => {
@@ -52,8 +65,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       verifyTwoFactor: async (challengeToken, code) => startSession(await api.verifyTwoFactor(challengeToken, code)),
       signUp: async (email, password) => startSession(await api.signUp(email, password)),
       logout,
+      signOut,
+      signedOutByChoice,
     }),
-    [isAuthenticated, startSession, logout],
+    [isAuthenticated, startSession, logout, signOut, signedOutByChoice],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
