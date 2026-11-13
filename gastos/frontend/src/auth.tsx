@@ -2,11 +2,17 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { api, loadSession, saveSession, setUnauthorizedHandler } from './api.ts'
-import type { AuthResponse } from './api.ts'
+import type { AuthResponse, TwoFactorChallenge } from './api.ts'
 
 interface AuthContextValue {
   isAuthenticated: boolean
-  signIn: (email: string, password: string) => Promise<void>
+  /**
+   * Starts the session, unless the account has the two-step verification: then there is none yet and the challenge comes
+   * back, to be finished with {@link verifyTwoFactor}. Null means the session started.
+   */
+  signIn: (email: string, password: string) => Promise<TwoFactorChallenge | null>
+  /** The second step of the sign in: the challenge and a code (of the app, or a recovery one) start the session. */
+  verifyTwoFactor: (challengeToken: string, code: string) => Promise<void>
   signUp: (email: string, password: string) => Promise<void>
   logout: () => void
 }
@@ -37,7 +43,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextValue>(
     () => ({
       isAuthenticated,
-      signIn: async (email, password) => startSession(await api.signIn(email, password)),
+      signIn: async (email, password) => {
+        const result = await api.signIn(email, password)
+        if (result.requiresTwoFactor) return result
+        startSession(result)
+        return null
+      },
+      verifyTwoFactor: async (challengeToken, code) => startSession(await api.verifyTwoFactor(challengeToken, code)),
       signUp: async (email, password) => startSession(await api.signUp(email, password)),
       logout,
     }),

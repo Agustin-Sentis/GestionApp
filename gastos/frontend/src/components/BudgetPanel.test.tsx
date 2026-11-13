@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { saveSession } from '../api.ts'
 import type { BudgetProgress, Category, MonthlyReport } from '../api.ts'
 import { currentMonthValue, formatMoneyCompact, parseMonthValue } from '../format.ts'
@@ -31,10 +31,11 @@ interface Setup {
   saveReply?: MockReply
   year?: number
   month?: number
+  onOpenSettings?: (section: 'security' | 'notifications') => void
 }
 
 /** Renders the panel and returns the bodies of the PUTs it sent (parsed). */
-function setup({ report = reportOf([progress()]), categories = [food, rent, salary], saveReply, year = 2026, month = 11 }: Setup = {}) {
+function setup({ report = reportOf([progress()]), categories = [food, rent, salary], saveReply, year = 2026, month = 11, onOpenSettings = vi.fn() }: Setup = {}) {
   saveSession({ token: 'jwt', expiresAtUtc: new Date(Date.now() + 3_600_000).toISOString() })
   const saved: unknown[] = []
   const save = (init: RequestInit): MockReply => {
@@ -48,7 +49,7 @@ function setup({ report = reportOf([progress()]), categories = [food, rent, sala
     [`PUT /api/category/${food.id}/budget`]: save,
     [`PUT /api/category/${rent.id}/budget`]: save,
   })
-  renderWithProviders(<BudgetPanel year={year} month={month} />)
+  renderWithProviders(<BudgetPanel year={year} month={month} onOpenSettings={onOpenSettings} />)
   return saved
 }
 
@@ -183,12 +184,22 @@ describe('BudgetPanel', () => {
     expect(await screen.findByText(/lo gastado puede ser más/)).toBeInTheDocument()
   })
 
-  it('has the switch for the alert mails at the foot of the card', async () => {
+  it('no longer holds the switch for the alert mails: it points to the settings window', async () => {
     setup()
 
     const card = (await screen.findByRole('heading', { name: 'Presupuestos' })).closest('section')!
-    const box = await within(card).findByRole('checkbox', { name: /Avisarme por correo/ })
-    expect(box).not.toBeChecked()
+    expect(within(card).queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(await within(card).findByText(/Los avisos por correo se configuran en/)).toBeInTheDocument()
+  })
+
+  it('opens the settings on the notifications section from the card', async () => {
+    const onOpenSettings = vi.fn()
+    setup({ onOpenSettings })
+    const card = (await screen.findByRole('heading', { name: 'Presupuestos' })).closest('section')!
+
+    await userEvent.click(await within(card).findByRole('button', { name: 'Ajustes › Notificaciones' }))
+
+    expect(onOpenSettings).toHaveBeenCalledWith('notifications')
   })
 
   it('shows nothing when the report could not be loaded: the summary above explains it', async () => {
@@ -197,7 +208,7 @@ describe('BudgetPanel', () => {
       'GET /api/category': () => ({ body: [food] }),
       'GET /api/report/monthly': () => ({ status: 500, body: { error: 'boom' } }),
     })
-    renderWithProviders(<BudgetPanel year={2026} month={11} />)
+    renderWithProviders(<BudgetPanel year={2026} month={11} onOpenSettings={vi.fn()} />)
 
     // While it loads the card shows its title with placeholders; once the report fails the whole card goes away
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Presupuestos' })).not.toBeInTheDocument())

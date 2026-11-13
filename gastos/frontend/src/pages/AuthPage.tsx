@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { api } from '../api.ts'
+import { ApiError, api } from '../api.ts'
 import { useAuth } from '../auth.tsx'
 import Brand, { APP_NAME } from '../components/Brand.tsx'
 import PasswordRulesHint from '../components/PasswordRulesHint.tsx'
@@ -17,7 +17,7 @@ function initialMode(value: string | null): Mode {
 }
 
 export default function AuthPage() {
-  const { signIn, signUp } = useAuth()
+  const { signIn, signUp, verifyTwoFactor } = useAuth()
   const [params] = useSearchParams()
   const [mode, setMode] = useState<Mode>(initialMode(params.get('modo')))
   const [email, setEmail] = useState('')
@@ -26,11 +26,23 @@ export default function AuthPage() {
   const [busy, setBusy] = useState(false)
   // The recovery mail was asked for. The answer is the same for every address, so it says nothing about the account.
   const [sent, setSent] = useState(false)
+  // The password was right and the account has the two-step verification: the second step is on screen until the code
+  // is accepted. The challenge is all there is (no session yet), and it lasts 5 minutes.
+  const [challenge, setChallenge] = useState<string | null>(null)
+  const [code, setCode] = useState('')
+  const [useRecoveryCode, setUseRecoveryCode] = useState(false)
 
   function goTo(next: Mode) {
     setMode(next)
     setError(null)
     setSent(false)
+    leaveSecondStep()
+  }
+
+  function leaveSecondStep() {
+    setChallenge(null)
+    setCode('')
+    setUseRecoveryCode(false)
   }
 
   async function onSubmit(e: FormEvent) {
@@ -38,21 +50,41 @@ export default function AuthPage() {
     setError(null)
     setBusy(true)
     try {
+      if (challenge) {
+        await verifyTwoFactor(challenge, code.trim())
+        return
+      }
       if (mode === 'forgot') {
         await api.forgotPassword(email.trim())
         setSent(true)
         setBusy(false)
         return
       }
-      await (mode === 'signin' ? signIn(email, password) : signUp(email, password))
+      if (mode === 'signin') {
+        const next = await signIn(email, password)
+        if (next) {
+          // Do not keep the password around while the second step is open
+          setPassword('')
+          setChallenge(next.challengeToken)
+          setBusy(false)
+        }
+        return
+      }
+      await signUp(email, password)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ocurrió un error inesperado')
       setBusy(false)
+      if (challenge) {
+        // The challenge expired: nothing to try again with, back to the password. Any other error leaves the step open.
+        if (err instanceof ApiError && err.status === 401) leaveSecondStep()
+        else setCode('')
+      }
     }
   }
 
   const isSignIn = mode === 'signin'
   const isForgot = mode === 'forgot'
+  const isSecondStep = challenge !== null
 
   return (
     <div className="relative min-h-dvh">
@@ -71,17 +103,65 @@ export default function AuthPage() {
         <main className="grid flex-1 place-items-center py-8">
           <form className="card w-full max-w-sm gap-5 p-6" onSubmit={onSubmit}>
             <div className="flex flex-col gap-1">
-              <h1 className="panel-title">{isForgot ? 'Recuperar contraseña' : isSignIn ? 'Entrar' : 'Nueva cuenta'}</h1>
+              <h1 className="panel-title">
+                {isSecondStep ? 'Verificación en dos pasos' : isForgot ? 'Recuperar contraseña' : isSignIn ? 'Entrar' : 'Nueva cuenta'}
+              </h1>
               <p className="muted mt-2 text-sm">
-                {isForgot
-                  ? 'Te mandamos un enlace para elegir una contraseña nueva'
-                  : isSignIn
-                    ? 'Ingresá a tu cuenta'
-                    : 'Creá tu cuenta'}
+                {isSecondStep
+                  ? useRecoveryCode
+                    ? 'Ingresá uno de tus códigos de recuperación. Cada uno sirve una sola vez.'
+                    : 'Ingresá el código de 6 dígitos que muestra tu app autenticadora'
+                  : isForgot
+                    ? 'Te mandamos un enlace para elegir una contraseña nueva'
+                    : isSignIn
+                      ? 'Ingresá a tu cuenta'
+                      : 'Creá tu cuenta'}
               </p>
             </div>
 
-            {isForgot && sent ? (
+            {isSecondStep ? (
+              <>
+                <label className="field">
+                  {useRecoveryCode ? 'Código de recuperación' : 'Código de 6 dígitos'}
+                  {/* One field that changes kind, so the focus stays where the user is typing. A new key remounts it, empty. */}
+                  <input
+                    key={useRecoveryCode ? 'recovery' : 'app'}
+                    className="input"
+                    type="text"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    inputMode={useRecoveryCode ? 'text' : 'numeric'}
+                    autoComplete={useRecoveryCode ? 'off' : 'one-time-code'}
+                    autoCapitalize={useRecoveryCode ? 'characters' : 'off'}
+                    spellCheck={false}
+                    autoFocus
+                    required
+                  />
+                </label>
+
+                {error && <p className="error-text" role="alert">{error}</p>}
+
+                <button type="submit" className="btn-primary py-2.5" disabled={busy || code.trim() === ''}>
+                  {busy ? 'Un momento…' : 'Verificar'}
+                </button>
+
+                <button
+                  type="button"
+                  className="btn-link self-start"
+                  onClick={() => {
+                    setUseRecoveryCode(!useRecoveryCode)
+                    setCode('')
+                    setError(null)
+                  }}
+                >
+                  {useRecoveryCode ? 'Usar el código de la app' : 'Usar un código de recuperación'}
+                </button>
+
+                <button type="button" className="btn-link" onClick={() => { setError(null); leaveSecondStep() }}>
+                  Volver
+                </button>
+              </>
+            ) : isForgot && sent ? (
               <>
                 {/* The same words for every address: this must not tell whether the email has an account */}
                 <p role="status">

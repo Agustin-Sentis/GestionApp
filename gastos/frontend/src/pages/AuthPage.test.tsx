@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { mockApi, mockFetchNetworkError } from '../test/fetchMock.ts'
 import type { MockReply } from '../test/fetchMock.ts'
 import { renderWithProviders } from '../test/render.tsx'
@@ -167,5 +167,140 @@ describe('AuthPage', () => {
     renderWithProviders(<AuthPage />)
 
     expect(screen.getByRole('link', { name: '← Volver al inicio' })).toHaveAttribute('href', '/')
+  })
+})
+
+describe('AuthPage second step (two-step verification)', () => {
+  const session = { token: 'jwt', userId: 'u', email: 'ana@example.com', expiresAtUtc: new Date(Date.now() + 3_600_000).toISOString() }
+  const CHALLENGE = { requiresTwoFactor: true, challengeToken: 'challenge-1' }
+
+  /** A server whose sign in asks for the second step; `verify` answers the code. */
+  function twoFactorServer(verify: MockReply = { body: session }) {
+    return mockApi({
+      'POST /api/auth/signin': () => ({ body: CHALLENGE }),
+      'POST /api/auth/2fa/verify': () => verify,
+    })
+  }
+
+  async function signInUntilTheSecondStep() {
+    await userEvent.type(screen.getByLabelText('Email'), 'ana@example.com')
+    await userEvent.type(screen.getByLabelText('Contraseña'), 'Demo1234!')
+    await userEvent.click(screen.getByRole('button', { name: 'Ingresar' }))
+    await screen.findByRole('heading', { name: 'Verificación en dos pasos' })
+  }
+
+  it('asks for the code of the app after the password, and forgets the password', async () => {
+    twoFactorServer()
+    renderWithProviders(<AuthPage />)
+
+    await signInUntilTheSecondStep()
+
+    const input = screen.getByLabelText('Código de 6 dígitos')
+    expect(input).toHaveAttribute('inputmode', 'numeric')
+    expect(input).toHaveAttribute('autocomplete', 'one-time-code')
+    expect(input).toHaveFocus()
+    expect(screen.queryByLabelText('Contraseña')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Verificar' })).toBeInTheDocument()
+    expect(localStorage.getItem('gastos.session')).toBeNull() // the password alone is not a session
+  })
+
+  it('sends the challenge with the code, and starts the session', async () => {
+    const fetchMock = twoFactorServer()
+    renderWithProviders(<AuthPage />)
+    await signInUntilTheSecondStep()
+
+    await userEvent.type(screen.getByLabelText('Código de 6 dígitos'), '123456')
+    await userEvent.click(screen.getByRole('button', { name: 'Verificar' }))
+
+    await vi.waitFor(() => expect(JSON.parse(localStorage.getItem('gastos.session') ?? '{}').token).toBe('jwt'))
+    const verifyCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/api/auth/2fa/verify'))
+    expect(JSON.parse(String(verifyCall?.[1]?.body))).toEqual({ challengeToken: 'challenge-1', code: '123456' })
+  })
+
+  it('switches to a recovery code and back', async () => {
+    twoFactorServer()
+    renderWithProviders(<AuthPage />)
+    await signInUntilTheSecondStep()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Usar un código de recuperación' }))
+    expect(screen.getByLabelText('Código de recuperación')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Código de 6 dígitos')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Usar el código de la app' }))
+    expect(screen.getByLabelText('Código de 6 dígitos')).toBeInTheDocument()
+  })
+
+  it('goes back to the password, keeping the email and dropping the challenge', async () => {
+    const fetchMock = twoFactorServer()
+    renderWithProviders(<AuthPage />)
+    await signInUntilTheSecondStep()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Volver' }))
+
+    expect(screen.getByLabelText('Email')).toHaveValue('ana@example.com')
+    expect(screen.getByLabelText('Contraseña')).toHaveValue('')
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/2fa/verify'))).toBe(false)
+  })
+
+  it('says a wrong code and stays on the second step, with the field empty to try again', async () => {
+    twoFactorServer({ status: 400, body: { error: 'Código incorrecto o vencido.' } })
+    renderWithProviders(<AuthPage />)
+    await signInUntilTheSecondStep()
+
+    await userEvent.type(screen.getByLabelText('Código de 6 dígitos'), '000000')
+    await userEvent.click(screen.getByRole('button', { name: 'Verificar' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Código incorrecto o vencido.')
+    expect(screen.getByLabelText('Código de 6 dígitos')).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'Verificar' })).toBeDisabled() // blank: nothing to send yet
+
+    await userEvent.type(screen.getByLabelText('Código de 6 dígitos'), '654321')
+    expect(screen.getByRole('button', { name: 'Verificar' })).toBeEnabled()
+  })
+
+  it('shows the lock with the time to wait', async () => {
+    twoFactorServer({ status: 429, body: { error: 'Demasiados intentos. Probá de nuevo en 15 minutos.', retryAfterSeconds: 900 } })
+    renderWithProviders(<AuthPage />)
+    await signInUntilTheSecondStep()
+
+    await userEvent.type(screen.getByLabelText('Código de 6 dígitos'), '123456')
+    await userEvent.click(screen.getByRole('button', { name: 'Verificar' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Demasiados intentos. Probá de nuevo en 15 minutos.')
+    expect(screen.getByRole('heading', { name: 'Verificación en dos pasos' })).toBeInTheDocument()
+  })
+
+  it('goes back to the password, with a notice, when the challenge expired', async () => {
+    twoFactorServer({ status: 401, body: { error: 'Tu verificación venció, ingresá de nuevo.' } })
+    renderWithProviders(<AuthPage />)
+    await signInUntilTheSecondStep()
+
+    await userEvent.type(screen.getByLabelText('Código de 6 dígitos'), '123456')
+    await userEvent.click(screen.getByRole('button', { name: 'Verificar' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Tu verificación venció, ingresá de nuevo.')
+    expect(screen.getByLabelText('Contraseña')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Verificación en dos pasos' })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Email')).toHaveValue('ana@example.com')
+  })
+
+  it('does not show a second step to an account without it', async () => {
+    mockApi({ 'POST /api/auth/signin': () => ({ body: { ...session, requiresTwoFactor: false } }) })
+    renderWithProviders(<AuthPage />)
+
+    await userEvent.type(screen.getByLabelText('Email'), 'ana@example.com')
+    await userEvent.type(screen.getByLabelText('Contraseña'), 'Demo1234!')
+    await userEvent.click(screen.getByRole('button', { name: 'Ingresar' }))
+
+    await vi.waitFor(() => expect(JSON.parse(localStorage.getItem('gastos.session') ?? '{}').token).toBe('jwt'))
+    expect(screen.queryByRole('heading', { name: 'Verificación en dos pasos' })).not.toBeInTheDocument()
+  })
+
+  it('does not let a blank code be sent', async () => {
+    twoFactorServer()
+    renderWithProviders(<AuthPage />)
+    await signInUntilTheSecondStep()
+
+    expect(screen.getByRole('button', { name: 'Verificar' })).toBeDisabled()
   })
 })

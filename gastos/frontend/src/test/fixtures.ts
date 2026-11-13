@@ -2,7 +2,7 @@ import type { Category, PagedResult, Settings, Transaction } from '../api.ts'
 
 /** The settings of a user who has not touched the budget alerts; pass only what a test cares about. */
 export function settings(overrides: Partial<Settings> = {}): Settings {
-  return { dollarType: 'Official', email: 'ana@example.com', budgetEmailAlerts: false, emailConfirmed: false, ...overrides }
+  return { dollarType: 'Official', email: 'ana@example.com', budgetEmailAlerts: false, emailConfirmed: false, twoFactorEnabled: false, ...overrides }
 }
 
 export const food: Category = { id: '3f2b1c9e-7a4d-4e8b-9c1d-2a5b6c7d8e9f', name: 'Comida', type: 'Expense', monthlyBudget: null }

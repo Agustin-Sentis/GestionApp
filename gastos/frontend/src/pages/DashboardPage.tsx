@@ -9,7 +9,11 @@ import Brand, { APP_NAME, BrandMark } from '../components/Brand.tsx'
 import BudgetPanel from '../components/BudgetPanel.tsx'
 import CategoryManager from '../components/CategoryManager.tsx'
 import DollarTypeToggle from '../components/DollarTypeToggle.tsx'
+import EmailStatusChip from '../components/EmailStatusChip.tsx'
 import MonthStats from '../components/MonthStats.tsx'
+import SettingsButton from '../components/SettingsButton.tsx'
+import SettingsModal from '../components/SettingsModal.tsx'
+import type { SettingsSection } from '../components/SettingsModal.tsx'
 import MonthlyReportView from '../components/MonthlyReportView.tsx'
 import ThemeToggle from '../components/ThemeToggle.tsx'
 import TransactionForm from '../components/TransactionForm.tsx'
@@ -48,6 +52,14 @@ export default function DashboardPage() {
   // The transaction loaded in the side form, if any. Kept here because the list starts the edit and the form ends it.
   const [editing, setEditing] = useState<Transaction | null>(null)
   const [view, setView] = useState<View>('resumen')
+  // The settings window: opened by the floating button (on security) or by the link of the budgets card (on notifications)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>('security')
+
+  function openSettings(section: SettingsSection) {
+    setSettingsSection(section)
+    setSettingsOpen(true)
+  }
   // The month (and the list's filters) live in the URL, so a reload or a shared link shows the same view
   const { filters, setMonth } = useListFilters()
   const { year, month } = parseMonthValue(filters.month)
@@ -117,6 +129,8 @@ export default function DashboardPage() {
 
           {/* Wraps: with no room for both, "Salir" goes under the theme control instead of being cut off */}
           <div className="order-2 ml-auto flex min-w-0 flex-wrap items-center justify-end gap-3 lg:order-4">
+            {/* Only while the address is not confirmed; it does not take up room otherwise */}
+            <EmailStatusChip />
             <DollarTypeToggle />
             <ThemeToggle />
             <button type="button" className="btn" onClick={logout}>Salir</button>
@@ -126,7 +140,7 @@ export default function DashboardPage() {
         <main className="grid min-h-0 flex-1 gap-3 p-3 sm:p-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,0.85fr)]">
           <Panel id="resumen" current={view}>
             <MonthlyReportView year={year} month={month} />
-            <BudgetPanel year={year} month={month} />
+            <BudgetPanel year={year} month={month} onOpenSettings={openSettings} />
           </Panel>
 
           <Panel id="libro" current={view}>
@@ -169,6 +183,14 @@ export default function DashboardPage() {
           </div>
         </nav>
       </div>
+
+      <SettingsButton onClick={() => openSettings('security')} />
+      <SettingsModal
+        open={settingsOpen}
+        section={settingsSection}
+        onSectionChange={setSettingsSection}
+        onClose={() => setSettingsOpen(false)}
+      />
     </div>
   )
 }
