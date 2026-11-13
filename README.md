@@ -22,10 +22,16 @@ Proyecto de portfolio: backend en **.NET 10** con Clean Architecture y frontend 
 - Alta, edición y baja de movimientos, en **ARS o USD**, con confirmación antes de eliminar y avisos al guardar o fallar.
 - Listado paginado con filtros por categoría, tipo, mes o rango de fechas y texto de la nota; los filtros viven en la URL, así que un enlace reproduce la misma vista.
 - Exportación a **CSV** (abre en Excel) de lo que muestran los filtros.
-- Resumen mensual: ingresos, gastos y balance, con cinco gráficos a elegir (destino de los ingresos, gastos por categoría, ingresos por categoría, ranking de categorías e ingresos vs. gastos). Cada uno trae su tabla de detalle con los montos y porcentajes, y cada categoría conserva su color en todos. La elección queda en la URL.
+- Resumen mensual: ingresos, gastos y lo que te queda, cada uno comparado con el mes anterior ("▲ 25% vs. octubre"), con cinco gráficos a elegir (destino de los ingresos, gastos por categoría, ingresos por categoría, ranking de categorías e ingresos vs. gastos). Cada uno trae su tabla de detalle con los montos y porcentajes, y cada categoría conserva su color en todos. La elección queda en la URL.
+- **Presupuestos mensuales** por categoría de gasto, en pesos: una barra de avance por categoría en el resumen, con el estado también en palabras ("Cerca del límite" desde el 80%, "Superado por $ X" al pasarte). El monto se edita ahí mismo.
+- **Avisos por correo** (opcionales): un mail cuando una categoría llega al 80% del presupuesto y otro cuando lo supera, una sola vez por mes y nivel. Se prenden con una casilla en **Ajustes › Notificaciones** y se activan al confirmar el correo con un enlace.
 - Modo claro, oscuro o el del sistema, a elección del usuario.
 - Página de inicio que explica qué hace la app, y un panel que entra completo en la pantalla: tres paneles lado a lado en pantallas grandes y pestañas en pantallas chicas.
-- Conversión USD → ARS con la cotización de [dolarapi.com](https://dolarapi.com) del día en que se carga el movimiento, que se guarda con él. La consulta se cachea 15 minutos y se reintenta si el servicio falla; si sigue caído, el movimiento se guarda igual sin cotización y el reporte la resuelve después.
+- Conversión USD → ARS con el dólar que elija el usuario: **oficial, blue o MEP**, con las cotizaciones de [dolarapi.com](https://dolarapi.com). La elección vale para los movimientos que se cargan de ahí en adelante: cada movimiento queda con el dólar y la cotización del día en que se guardó, y elegir otro después no lo cambia (los meses cerrados tampoco). Cada movimiento dice al lado con qué cotización se convirtió, y el formulario avisa con cuál se va a guardar. La consulta se cachea 15 minutos y se reintenta si el servicio falla; si no hay cotización, el movimiento se guarda igual y el resumen avisa cuál faltó.
+- **Confirmación del correo** al registrarse: llega un mail con un enlace y, mientras no se abra, un aviso en el encabezado (sin bloquear nada) permite reenviarlo o corregir el correo si había un error de tipeo.
+- **Recuperación de contraseña** por mail, con un enlace que dura 1 hora y sirve una sola vez. La pantalla responde igual aunque el correo no exista, y al restablecerla se cierran todas las sesiones que estaban abiertas.
+- **Verificación en dos pasos** (opcional): además de la contraseña, al entrar se pide el código de 6 dígitos de una app autenticadora (Google Authenticator, Authy, 1Password…). Se activa escaneando un QR, y trae 10 códigos de recuperación de un solo uso por si se pierde el celular. Tras 5 códigos incorrectos seguidos se bloquea 15 minutos, y restablecer la contraseña por mail no la saltea.
+- **Ajustes**: un botón flotante abre una ventana con la seguridad (la verificación en dos pasos) y las notificaciones (el estado del correo y los avisos de presupuesto).
 - Cada usuario ve y modifica únicamente sus propios datos.
 
 ## 🧱 Stack
@@ -80,9 +86,12 @@ El frontend, en `gastos/frontend/src/`:
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| POST | `/api/auth/signup` · `/api/auth/signin` | Registro e inicio de sesión |
+| POST | `/api/auth/signup` · `/api/auth/signin` | Registro e inicio de sesión. Con la verificación en dos pasos activada, `signin` no devuelve la sesión sino un desafío (`requiresTwoFactor` y `challengeToken`, de 5 minutos) |
+| POST | `/api/auth/2fa/verify` | Termina el inicio de sesión con el desafío y el código de la app (o uno de recuperación). 429 tras 5 códigos incorrectos seguidos |
+| POST | `/api/auth/forgot-password` · `/api/auth/reset-password` | Recuperación de contraseña: pedir el enlace por mail (responde siempre lo mismo) y elegir la contraseña nueva con el token |
 | GET | `/api/category` | Categorías del usuario |
 | POST | `/api/category` | Crear una categoría |
+| PUT | `/api/category/{id}/budget` | Fijar (o quitar, con `null`) el presupuesto mensual de una categoría de gasto |
 | DELETE | `/api/category/{id}` | Borrar una categoría (409 si tiene movimientos) |
 | GET | `/api/transaction/paged` | Movimientos paginados; filtros: mes (`year`+`month`) o rango (`from`+`to`), `categoryId`, `type`, `search` (texto de la nota) |
 | GET | `/api/transaction/export` | Los mismos filtros, como archivo CSV (hasta 10.000 filas) |
@@ -90,7 +99,14 @@ El frontend, en `gastos/frontend/src/`:
 | POST | `/api/transaction` | Crear un movimiento |
 | PUT | `/api/transaction/{id}` | Editar un movimiento |
 | DELETE | `/api/transaction/{id}` | Borrar un movimiento |
-| GET | `/api/report/monthly?year=&month=` | Resumen mensual en ARS |
+| GET | `/api/report/monthly?year=&month=` | Resumen mensual en ARS, con los totales del mes anterior (`previous`) para compararlo y el avance de cada presupuesto (`budgets`) |
+| GET | `/api/settings` | Ajustes del usuario: con qué dólar (`Official`, `Blue` o `Mep`) se guardan sus movimientos nuevos |
+| PUT | `/api/settings` | Cambiar ese ajuste. Vale de ahí en adelante: los movimientos ya guardados conservan el suyo |
+| PUT | `/api/settings/budget-alerts` | Prender o apagar los avisos de presupuesto por correo (al prenderlos manda un mail de confirmación) |
+| POST | `/api/settings/resend-confirmation` | Reenviar el mail de confirmación del correo (máx. uno por minuto) |
+| PUT | `/api/settings/email` | Corregir el correo mientras no esté confirmado (pide la contraseña; manda el mail de confirmación al correo nuevo) |
+| POST | `/api/settings/confirm-email` | Confirmar el correo con el token del enlace del mail (sin sesión) |
+| POST | `/api/settings/2fa/setup` · `enable` · `disable` · `recovery-codes` | Verificación en dos pasos: empezar la activación (QR), confirmarla con el primer código y recibir los códigos de recuperación, desactivarla, o generar códigos nuevos. Piden la contraseña y/o un código |
 | GET | `/api/health` | Estado de la API y de la base de datos |
 
 La documentación interactiva completa está en `/scalar`.
@@ -110,13 +126,18 @@ Es un proyecto en evolución. Lo que tengo identificado para seguir:
 
 **Funcionalidades**
 - [x] Filtros en el listado por categoría, rango de fechas y texto de la nota.
-- [ ] Presupuestos mensuales por categoría con alertas al superarlos.
+- [x] Presupuestos mensuales por categoría, con barra de avance y aviso dentro de la app al llegar al 80% y al superar el 100%.
+- [x] Avisos de presupuesto por correo, a elección del usuario (apagados por defecto, con doble confirmación). Usa Brevo; el envío está detrás de una interfaz para cambiar de proveedor (por ejemplo a Resend cuando haya dominio propio).
 - [ ] Movimientos recurrentes (alquiler, suscripciones).
 - [x] Exportación a CSV.
-- [ ] Reportes por rango de meses y comparación contra el mes anterior.
-- [ ] Elegir el tipo de cotización del dólar (oficial, blue, MEP): hoy se define en la configuración del servidor, no lo elige el usuario.
+- [x] Comparación contra el mes anterior: cada cifra del resumen muestra cuánto subió o bajó.
+- [ ] Reportes por rango de meses (varios meses juntos, con su evolución).
+- [x] Elegir el tipo de cotización del dólar (oficial, blue, MEP), por usuario: cada movimiento conserva el que estaba elegido al guardarlo y lo muestra a la vista.
 - [x] Paginación del listado de movimientos.
-- [ ] Recuperación de contraseña y refresh tokens.
+- [x] Recuperación de contraseña por mail (enlace de 1 hora y de un solo uso). Al restablecerla se cierran todas las sesiones abiertas.
+- [x] Confirmar el correo al registrarse: mail de confirmación al crear la cuenta, aviso en el encabezado mientras falte (sin bloquear el acceso) y forma de reenviarlo o corregir el correo si hubo un error de tipeo.
+- [x] Verificación en dos pasos (TOTP con Google Authenticator y códigos de recuperación), opcional, con bloqueo temporal tras 5 códigos incorrectos. Las claves que cifran los secretos viven en la base de datos.
+- [ ] Refresh tokens.
 
 **Calidad e infraestructura**
 - [x] Tests de integración del backend con una base real (Testcontainers).

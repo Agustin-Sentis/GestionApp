@@ -13,18 +13,53 @@ classDiagram
     class User {
         +string Email
         +string Password
+        +DollarType DollarType
+        +bool BudgetEmailAlerts
+        +DateTimeOffset EmailConfirmedAt
+        +DateTimeOffset PasswordChangedAt
+        +bool TwoFactorEnabled
+        +string TwoFactorSecret
+        +long TwoFactorLastStep
+        +int TwoFactorFailedAttempts
+        +DateTimeOffset TwoFactorLockedUntil
+    }
+
+    class RecoveryCode {
+        +Guid UserId
+        +string CodeHash
+        +DateTimeOffset UsedAt
+    }
+
+    class UserToken {
+        +Guid UserId
+        +UserTokenPurpose Purpose
+        +string TokenHash
+        +DateTimeOffset ExpiresAt
+        +DateTimeOffset UsedAt
+    }
+
+    class BudgetAlert {
+        +Guid UserId
+        +Guid CategoryId
+        +int Year
+        +int Month
+        +BudgetStatus Level
     }
 
     class Category {
         +string Name
         +TransactionType Type
         +Guid UserId
+        +decimal MonthlyBudget
     }
 
     class Transaction {
         +decimal Amount
         +Currency Currency
         +decimal ExchangeRate
+        +decimal BlueExchangeRate
+        +decimal MepExchangeRate
+        +DollarType DollarType
         +DateOnly Date
         +string Note
         +Guid CategoryId
@@ -43,11 +78,42 @@ classDiagram
         USD
     }
 
+    class DollarType {
+        <<enumeration>>
+        Official
+        Blue
+        Mep
+    }
+
+    class UserTokenPurpose {
+        <<enumeration>>
+        EmailConfirmation
+        PasswordReset
+    }
+
+    class BudgetStatus {
+        <<enumeration>>
+        Ok
+        Warning
+        Exceeded
+    }
+
     BaseEntity <|-- User
     BaseEntity <|-- Category
     BaseEntity <|-- Transaction
+    BaseEntity <|-- UserToken
+    BaseEntity <|-- BudgetAlert
+    BaseEntity <|-- RecoveryCode
+    User "1" --> "*" RecoveryCode
+    User "1" --> "*" UserToken
+    User "1" --> "*" BudgetAlert
+    Category "1" --> "*" BudgetAlert
+    UserToken --> UserTokenPurpose
+    BudgetAlert --> BudgetStatus
     User "1" --> "*" Category
     User "1" --> "*" Transaction
     Category "1" --> "*" Transaction
     Category --> TransactionType
     Transaction --> Currency
+    Transaction --> DollarType
+    User --> DollarType
