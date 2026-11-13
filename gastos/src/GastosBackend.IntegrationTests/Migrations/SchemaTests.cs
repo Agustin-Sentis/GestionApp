@@ -99,7 +99,7 @@ public class SchemaTests
             """);
 
         Assert.Equal(
-            new[] { "BudgetAlerts", "Categories", "Transactions", "UserTokens", "Users" },
+            new[] { "BudgetAlerts", "Categories", "RecoveryCodes", "Transactions", "UserTokens", "Users" },
             tables.Select(r => (string)r[0]).ToArray());
     }
 }

@@ -5,7 +5,7 @@ import { api, EXPENSE } from '../api.ts'
 import type { BudgetProgress, BudgetStatus, Category } from '../api.ts'
 import { categoryOrder, colorOf } from '../chartData.ts'
 import { currentMonthValue, formatMoneyCompact, formatPercent, parseMonthValue } from '../format.ts'
-import BudgetAlertsToggle from './BudgetAlertsToggle.tsx'
+import type { SettingsSection } from './SettingsModal.tsx'
 import { Skeleton, SkeletonGroup } from './Skeleton.tsx'
 import { useToast } from './toastContext.ts'
 
@@ -40,7 +40,16 @@ function isPastMonth(year: number, month: number): boolean {
  * report as the rest of the summary (same query key), so they always agree with it; the amounts are edited here, where
  * they are seen, and saving refreshes the report and the categories.
  */
-export default function BudgetPanel({ year, month }: { year: number; month: number }) {
+export default function BudgetPanel({
+  year,
+  month,
+  onOpenSettings,
+}: {
+  year: number
+  month: number
+  /** Opens the settings window; the switch of the alert mails lives there (notifications). */
+  onOpenSettings: (section: SettingsSection) => void
+}) {
   const queryClient = useQueryClient()
   const toast = useToast()
 
@@ -137,7 +146,13 @@ export default function BudgetPanel({ year, month }: { year: number; month: numb
         />
       )}
 
-      <BudgetAlertsToggle />
+      <p className="muted border-t border-line pt-3 text-sm">
+        Los avisos por correo se configuran en{' '}
+        <button type="button" className="btn-link" onClick={() => onOpenSettings('notifications')}>
+          Ajustes › Notificaciones
+        </button>
+        .
+      </p>
     </section>
   )
 }

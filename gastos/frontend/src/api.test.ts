@@ -231,6 +231,39 @@ describe('requests', () => {
     await expect(api.settings.confirmEmail('x')).rejects.toMatchObject({ status: 400, message: 'El enlace venció o ya se usó.' })
   })
 
+  it('asks for another confirmation mail with POST and a session, and nothing in the body', async () => {
+    signIn()
+    const fetchMock = mockFetch(() => ({ status: 204 }))
+
+    await api.settings.resendConfirmation()
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toMatch(/\/api\/settings\/resend-confirmation$/)
+    expect(init?.method).toBe('POST')
+    expect(headersOf(init)['authorization']).toBe('Bearer jwt-token')
+  })
+
+  it('changes the email with PUT, the new address and the password, and returns the settings', async () => {
+    signIn()
+    const fetchMock = mockFetch(() => ({ body: { email: 'nuevo@example.com', emailConfirmed: false } }))
+
+    const saved = await api.settings.changeEmail('nuevo@example.com', 'Demo1234!')
+
+    expect(saved).toEqual({ email: 'nuevo@example.com', emailConfirmed: false })
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toMatch(/\/api\/settings\/email$/)
+    expect(init?.method).toBe('PUT')
+    expect(JSON.parse(String(init?.body))).toEqual({ email: 'nuevo@example.com', password: 'Demo1234!' })
+    expect(headersOf(init)['authorization']).toBe('Bearer jwt-token')
+  })
+
+  it('raises the 400 of the server when the password of the email change is wrong', async () => {
+    signIn()
+    mockFetch(() => ({ status: 400, body: { error: 'La contraseña no es correcta.' } }))
+
+    await expect(api.settings.changeEmail('a@b.com', 'x')).rejects.toMatchObject({ status: 400, message: 'La contraseña no es correcta.' })
+  })
+
   it('fetches one transaction by id', async () => {
     const fetchMock = mockFetch(() => ({ body: { id: 't1', exchangeRate: 1570, arsAmount: 15700 } }))
 
@@ -358,5 +391,82 @@ describe('stored session', () => {
     saveSession(null)
 
     expect(loadSession()).toBeNull()
+  })
+})
+
+describe('two-step verification', () => {
+  it('signIn returns the session as before when the account has no 2FA', async () => {
+    mockFetch(() => ({ body: { requiresTwoFactor: false, token: 't', userId: 'u', email: 'a@x.com', expiresAtUtc: inOneHour() } }))
+
+    const result = await api.signIn('a@x.com', 'Secret1!')
+
+    expect(result.requiresTwoFactor).toBe(false)
+    if (!result.requiresTwoFactor) expect(result.token).toBe('t')
+  })
+
+  it('signIn returns the challenge, and no session, when the account has the 2FA on', async () => {
+    mockFetch(() => ({ body: { requiresTwoFactor: true, challengeToken: 'challenge' } }))
+
+    const result = await api.signIn('a@x.com', 'Secret1!')
+
+    expect(result).toEqual({ requiresTwoFactor: true, challengeToken: 'challenge' })
+  })
+
+  it('verifyTwoFactor sends the challenge and the code, and returns the session', async () => {
+    const fetchMock = mockFetch(() => ({ body: { token: 't', userId: 'u', email: 'a@x.com', expiresAtUtc: inOneHour() } }))
+
+    const session = await api.verifyTwoFactor('challenge', '123456')
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toMatch(/\/api\/auth\/2fa\/verify$/)
+    expect(init?.method).toBe('POST')
+    expect(JSON.parse(String(init?.body))).toEqual({ challengeToken: 'challenge', code: '123456' })
+    expect(headersOf(init)['authorization']).toBeUndefined()
+    expect(session.token).toBe('t')
+  })
+
+  it('an expired challenge (401) does not sign anybody out: nobody was signed in', async () => {
+    const handler = vi.fn()
+    setUnauthorizedHandler(handler)
+    mockFetch(() => ({ status: 401, body: { error: 'Tu verificación venció, ingresá de nuevo.' } }))
+
+    const error = await api.verifyTwoFactor('old', '123456').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect((error as ApiError).status).toBe(401)
+    expect(handler).not.toHaveBeenCalled()
+    setUnauthorizedHandler(null)
+  })
+
+  it('a lock (429) keeps the message with the time to wait', async () => {
+    mockFetch(() => ({ status: 429, body: { error: 'Demasiados intentos. Probá de nuevo en 12 minutos.', retryAfterSeconds: 700 } }))
+
+    const error = await api.verifyTwoFactor('c', '000000').catch((e: unknown) => e)
+
+    expect((error as ApiError).status).toBe(429)
+    expect((error as ApiError).message).toBe('Demasiados intentos. Probá de nuevo en 12 minutos.')
+  })
+
+  it('setup, enable, disable and recovery codes call their endpoints with a session', async () => {
+    signIn()
+    const fetchMock = mockFetch((url) => {
+      if (url.endsWith('/setup')) return { body: { uri: 'otpauth://totp/x', secret: 'ABC' } }
+      if (url.endsWith('/disable')) return { status: 204 }
+      return { body: { codes: ['AAAAA-BBBBB'] } }
+    })
+
+    expect(await api.twoFactor.setup('Secret1!')).toEqual({ uri: 'otpauth://totp/x', secret: 'ABC' })
+    expect(await api.twoFactor.enable('123456')).toEqual({ codes: ['AAAAA-BBBBB'] })
+    await api.twoFactor.disable('Secret1!', '123456')
+    expect(await api.twoFactor.regenerateRecoveryCodes('Secret1!', '123456')).toEqual({ codes: ['AAAAA-BBBBB'] })
+
+    const calls = fetchMock.mock.calls.map(([url, init]) => [String(url).replace(/^.*\/api/, '/api'), init?.method, JSON.parse(String(init?.body))])
+    expect(calls).toEqual([
+      ['/api/settings/2fa/setup', 'POST', { password: 'Secret1!' }],
+      ['/api/settings/2fa/enable', 'POST', { code: '123456' }],
+      ['/api/settings/2fa/disable', 'POST', { password: 'Secret1!', code: '123456' }],
+      ['/api/settings/2fa/recovery-codes', 'POST', { password: 'Secret1!', code: '123456' }],
+    ])
+    expect(headersOf(fetchMock.mock.calls[0][1])['authorization']).toBe('Bearer jwt-token')
   })
 })

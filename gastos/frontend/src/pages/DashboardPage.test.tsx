@@ -1,9 +1,10 @@
+import { focusManager } from '@tanstack/react-query'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { saveSession } from '../api.ts'
 import { mockApi } from '../test/fetchMock.ts'
-import { food, pageOf, salary, transaction } from '../test/fixtures.ts'
+import { food, pageOf, salary, settings, transaction } from '../test/fixtures.ts'
 import { renderWithProviders } from '../test/render.tsx'
 import DashboardPage from './DashboardPage.tsx'
 
@@ -295,5 +296,81 @@ describe('DashboardPage', () => {
 
     await waitFor(() => expect(screen.getByLabelText('Monto')).toHaveValue(800))
     expect(screen.getByLabelText('Nota (opcional)')).toHaveValue('cena')
+  })
+
+  describe('the notice of the unconfirmed address', () => {
+    it('is in the header while the address is not confirmed, and goes away when the user comes back having confirmed it', async () => {
+      let confirmed = false
+      setup('/?mes=2026-11', {
+        'GET /api/settings': () => ({ body: settings({ emailConfirmed: confirmed }) }),
+      })
+      expect(await screen.findByRole('button', { name: /Correo sin confirmar/ })).toBeInTheDocument()
+
+      // The link of the mail was opened in another tab; coming back to this one refreshes the settings
+      confirmed = true
+      focusManager.setFocused(false)
+      focusManager.setFocused(true)
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: /Correo sin confirmar/ })).not.toBeInTheDocument())
+    })
+
+    it('is not there when the address is already confirmed', async () => {
+      setup('/?mes=2026-11', { 'GET /api/settings': () => ({ body: settings({ emailConfirmed: true }) }) })
+      await screen.findByText('almuerzo')
+
+      expect(screen.queryByRole('button', { name: /Correo sin confirmar/ })).not.toBeInTheDocument()
+    })
+  })
+})
+
+describe('DashboardPage settings window', () => {
+  const full = { 'GET /api/settings': () => ({ body: settings({ emailConfirmed: true }) }) }
+
+  it('has a floating "Ajustes" button, and no settings window until it is pressed', async () => {
+    setup('/?mes=2026-11', full)
+    await screen.findByText('almuerzo')
+
+    expect(screen.getByRole('button', { name: 'Ajustes' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Ajustes' })).not.toBeInTheDocument()
+  })
+
+  it('opens the window on security from the floating button', async () => {
+    setup('/?mes=2026-11', full)
+    await screen.findByText('almuerzo')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Ajustes' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Ajustes' })
+    expect(within(dialog).getByRole('tab', { name: 'Seguridad' })).toHaveAttribute('aria-selected', 'true')
+    expect(await within(dialog).findByRole('heading', { name: 'Verificación en dos pasos' })).toBeInTheDocument()
+  })
+
+  it('opens the window on notifications from the link of the budgets card', async () => {
+    setup('/?mes=2026-11', full)
+    const card = (await screen.findByRole('heading', { name: 'Presupuestos' })).closest('section')!
+
+    await userEvent.click(await within(card).findByRole('button', { name: 'Ajustes › Notificaciones' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Ajustes' })
+    expect(within(dialog).getByRole('tab', { name: 'Notificaciones' })).toHaveAttribute('aria-selected', 'true')
+    expect(await within(dialog).findByRole('checkbox', { name: /Avisarme por correo/ })).toBeInTheDocument()
+  })
+
+  it('opens on security again after it was closed from notifications, through the floating button', async () => {
+    setup('/?mes=2026-11', full)
+    const card = (await screen.findByRole('heading', { name: 'Presupuestos' })).closest('section')!
+    await userEvent.click(await within(card).findByRole('button', { name: 'Ajustes › Notificaciones' }))
+    await userEvent.keyboard('{Escape}')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Ajustes' }))
+
+    expect(within(screen.getByRole('dialog', { name: 'Ajustes' })).getByRole('tab', { name: 'Seguridad' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('has no switch for the budget alert mails in the budgets card any more', async () => {
+    setup('/?mes=2026-11', full)
+    const card = (await screen.findByRole('heading', { name: 'Presupuestos' })).closest('section')!
+
+    expect(within(card).queryByRole('checkbox')).not.toBeInTheDocument()
   })
 })

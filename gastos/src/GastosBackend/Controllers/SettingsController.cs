@@ -50,6 +50,29 @@ namespace GastosBackend.Presentation.Controllers
         }
 
         /// <summary>
+        /// This endpoint mails a new confirmation link to the address of the account, if it is not confirmed yet (at most one
+        /// per minute). It answers 503 when the mail cannot be sent, so the button can say so.
+        /// </summary>
+        [HttpPost("resend-confirmation")]
+        public async Task<ActionResult> ResendConfirmation()
+        {
+            await _settingsService.ResendConfirmation(UserId);
+            return NoContent();
+        }
+
+        /// <summary>
+        /// This endpoint corrects the address of an account that has not confirmed it yet (for example a typo at the sign up).
+        /// It asks for the current password and is rate limited like the sign in, because it checks one. A wrong password is
+        /// a 400, not a 401: the app signs the user out on a 401.
+        /// </summary>
+        [HttpPut("email")]
+        [EnableRateLimiting(Program.AuthRateLimitPolicy)]
+        public async Task<ActionResult<SettingsResponse>> ChangeEmail([FromBody] ChangeEmailRequest request)
+        {
+            return Ok(await _settingsService.ChangeEmail(request, UserId));
+        }
+
+        /// <summary>
         /// This endpoint confirms the address of an account with the token of the confirmation mail. It needs no session,
         /// because the link may be opened on another device; it is rate limited like the sign in.
         /// </summary>

@@ -25,6 +25,8 @@ export interface Settings {
   budgetEmailAlerts: boolean
   /** The user opened the link of the confirmation mail. Until then no alert is sent, even with the alerts on. */
   emailConfirmed: boolean
+  /** The user turned on the two-step verification (an authenticator app). The secret and the codes never come here. */
+  twoFactorEnabled: boolean
 }
 
 export interface AuthResponse {
@@ -32,6 +34,28 @@ export interface AuthResponse {
   userId: string
   email: string
   expiresAtUtc: string
+}
+
+/** The password was right but the account has the two-step verification: there is no session yet, only this challenge. */
+export interface TwoFactorChallenge {
+  requiresTwoFactor: true
+  /** Valid for 5 minutes. Worth nothing but to finish the sign in with {@link api.verifyTwoFactor}. */
+  challengeToken: string
+}
+
+/** What signing in answers: the session (as always), or the challenge of the second step. */
+export type SignInResult = (AuthResponse & { requiresTwoFactor: false }) | TwoFactorChallenge
+
+/** What starting the 2FA activation gives: what the QR code carries, and the same secret as text. */
+export interface TwoFactorSetup {
+  /** The otpauth:// address the QR code is drawn from. */
+  uri: string
+  secret: string
+}
+
+/** The recovery codes in plain text. They are shown once: the server keeps only their hashes. */
+export interface RecoveryCodes {
+  codes: string[]
 }
 
 export interface Category {
@@ -269,8 +293,20 @@ const put = (body: unknown): RequestInit => ({ method: 'PUT', body: JSON.stringi
 // ---------- Endpoints ----------
 
 export const api = {
+  /**
+   * With the 2FA off it answers the session, as always. With it on, only a challenge: finish with {@link api.verifyTwoFactor}.
+   * (A 401 here is a wrong password; nobody has a session yet, so it does not sign anyone out.)
+   */
   signIn: (email: string, password: string) =>
-    request<AuthResponse>('/api/auth/signin', post({ email, password })),
+    request<SignInResult>('/api/auth/signin', post({ email, password })),
+
+  /**
+   * The second step of the sign in: the challenge and the 6-digit code of the app (or a recovery code) give the session.
+   * Errors (the message says which): 400 for a wrong or used code, 401 for a challenge that expired (go back to the password),
+   * 429 after 5 wrong codes in a row, with the time to wait in the message.
+   */
+  verifyTwoFactor: (challengeToken: string, code: string) =>
+    request<AuthResponse>('/api/auth/2fa/verify', post({ challengeToken, code })),
 
   signUp: (email: string, password: string) =>
     request<AuthResponse>('/api/auth/signup', post({ email, password })),
@@ -321,8 +357,36 @@ export const api = {
      * (at most one per minute); the server answers 503 when that mail could not be sent, and then nothing is saved.
      */
     setBudgetAlerts: (enabled: boolean) => request<Settings>('/api/settings/budget-alerts', put({ enabled })),
+    /**
+     * Mails another confirmation link to the address of the account (nothing happens if it is already confirmed). A 400 means
+     * one was sent less than a minute ago; a 503, that the mail could not be sent.
+     */
+    resendConfirmation: () => request<void>('/api/settings/resend-confirmation', post({})),
+    /**
+     * Corrects the address of an account that has not confirmed it yet, and mails the new one. It asks for the password. Errors
+     * (the message says which): 400 for a wrong password (never a 401, which would sign the user out) or a bad address,
+     * 409 for an address that is taken or an account that is already confirmed, 503 when the mail could not be sent.
+     */
+    changeEmail: (email: string, password: string) => request<Settings>('/api/settings/email', put({ email, password })),
     /** Confirms the address with the token of the mail's link. Needs no session. A 400 means the link expired or was used. */
     confirmEmail: (token: string) => request<void>('/api/settings/confirm-email', post({ token })),
+  },
+
+  /**
+   * The settings of the two-step verification. All of them ask for the password and/or a code. Errors (the message says
+   * which): 400 for a wrong password or code (never a 401, which would sign the user out), 409 when the state does not allow
+   * it (already on, not on, not started), 429 after 5 wrong codes in a row.
+   */
+  twoFactor: {
+    /** Starts the activation: nothing is on until {@link enable} confirms a code. Calling it again replaces the secret. */
+    setup: (password: string) => request<TwoFactorSetup>('/api/settings/2fa/setup', post({ password })),
+    /** Turns it on with the first code of the app. Returns the recovery codes: the only time they are shown. */
+    enable: (code: string) => request<RecoveryCodes>('/api/settings/2fa/enable', post({ code })),
+    /** Turns it off. The code can be the one of the app or a recovery code. */
+    disable: (password: string, code: string) => request<void>('/api/settings/2fa/disable', post({ password, code })),
+    /** Replaces the recovery codes with new ones (the old ones stop working). */
+    regenerateRecoveryCodes: (password: string, code: string) =>
+      request<RecoveryCodes>('/api/settings/2fa/recovery-codes', post({ password, code })),
   },
 
   reports: {

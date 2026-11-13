@@ -61,6 +61,37 @@ public class SettingsControllerTests
     }
 
     [Fact]
+    public async Task ResendConfirmation_ReturnsNoContent_AndAsksForTheSignedInUser()
+    {
+        var result = await _controller.ResendConfirmation();
+
+        Assert.IsType<NoContentResult>(result);
+        _settingsServiceMock.Verify(s => s.ResendConfirmation(UserId), Times.Once);
+    }
+
+    [Fact]
+    public async Task ChangeEmail_PassesTheSignedInUser_AndReturnsTheResult()
+    {
+        var request = new ChangeEmailRequest { Email = "nuevo@x.com", Password = "Demo1234!" };
+        _settingsServiceMock.Setup(s => s.ChangeEmail(request, UserId))
+            .ReturnsAsync(new SettingsResponse { Email = "nuevo@x.com", EmailConfirmed = false });
+
+        var result = await _controller.ChangeEmail(request);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal("nuevo@x.com", Assert.IsType<SettingsResponse>(ok.Value).Email);
+    }
+
+    [Fact]
+    public void ChangeEmail_ChecksAPassword_SoItIsRateLimitedLikeTheSignIn()
+    {
+        var change = typeof(SettingsController).GetMethod(nameof(SettingsController.ChangeEmail))!;
+
+        Assert.NotNull(change.GetCustomAttributes(typeof(Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute), false).SingleOrDefault());
+        Assert.Empty(change.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute), false));
+    }
+
+    [Fact]
     public async Task ConfirmEmail_ReturnsNoContent_WithoutNeedingASignedInUser()
     {
         // A controller with no user claim at all: the link of the mail is opened without a session
