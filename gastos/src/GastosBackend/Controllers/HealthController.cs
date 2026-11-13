@@ -1,10 +1,13 @@
 using GastosBackend.Infrastructure;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GastosBackend.Presentation.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    // The hosting platform checks this without a session
+    [AllowAnonymous]
     public class HealthController : ControllerBase
     {
         /// <summary>

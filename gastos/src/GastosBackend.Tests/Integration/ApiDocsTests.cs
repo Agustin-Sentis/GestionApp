@@ -39,11 +39,14 @@ public class ApiDocsTests : IClassFixture<ApiDocsTests.DocsOnFactory>, IClassFix
     [InlineData("/openapi/v1.json")]
     [InlineData("/scalar")]
     [InlineData("/scalar/v1")]
-    public async Task TheDocs_AreNotFound_WhenDisabled(string path)
+    public async Task TheDocs_AreNotServed_WhenDisabled(string path)
     {
         var response = await _docsOff.GetAsync(path);
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        // The API is closed by default, so a route that does not exist answers 401 to a visitor without a session (not 404):
+        // it does not reveal which routes exist. Either way the docs are not served.
+        Assert.True(response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Unauthorized,
+            $"{path} answered {(int)response.StatusCode}");
     }
 
     [Fact]
