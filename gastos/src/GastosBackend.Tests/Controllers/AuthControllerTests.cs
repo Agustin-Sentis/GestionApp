@@ -74,11 +74,47 @@ public class AuthControllerTests
     public async Task SignIn_ReturnsOkWithToken()
     {
         var request = new SignInRequest { Email = "demo@demo.com", Password = "Demo1234!" };
-        _authServiceMock.Setup(s => s.SignIn(request)).ReturnsAsync(new AuthResponse { Token = "jwt" });
+        _authServiceMock.Setup(s => s.SignIn(request)).ReturnsAsync(new SignInResponse { Token = "jwt" });
 
         var result = await _controller.SignIn(request);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal("jwt", Assert.IsType<SignInResponse>(ok.Value).Token);
+    }
+
+    [Fact]
+    public async Task SignIn_WithTwoFactor_ReturnsOkWithTheChallenge()
+    {
+        var request = new SignInRequest { Email = "demo@demo.com", Password = "Demo1234!" };
+        _authServiceMock.Setup(s => s.SignIn(request)).ReturnsAsync(new SignInResponse { RequiresTwoFactor = true, ChallengeToken = "challenge" });
+
+        var result = await _controller.SignIn(request);
+
+        var body = Assert.IsType<SignInResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.True(body.RequiresTwoFactor);
+        Assert.Equal("challenge", body.ChallengeToken);
+        Assert.Null(body.Token);
+    }
+
+    [Fact]
+    public async Task VerifyTwoFactor_ReturnsOkWithTheSession()
+    {
+        var request = new VerifyTwoFactorRequest { ChallengeToken = "challenge", Code = "123456" };
+        _authServiceMock.Setup(s => s.VerifyTwoFactor(request)).ReturnsAsync(new AuthResponse { Token = "jwt" });
+
+        var result = await _controller.VerifyTwoFactor(request);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
         Assert.Equal("jwt", Assert.IsType<AuthResponse>(ok.Value).Token);
+    }
+
+    [Fact]
+    public void TheTwoFactorVerification_IsAPostToTwoFaVerify_UnderTheAnonymousRateLimitedController()
+    {
+        var post = typeof(AuthController).GetMethod(nameof(AuthController.VerifyTwoFactor))!
+            .GetCustomAttributes(typeof(Microsoft.AspNetCore.Mvc.HttpPostAttribute), false)
+            .Cast<Microsoft.AspNetCore.Mvc.HttpPostAttribute>().Single();
+
+        Assert.Equal("2fa/verify", post.Template);
     }
 }

@@ -14,6 +14,7 @@ using GastosBackend.Presentation.Middlewares;
 using GastosBackend.Presentation.OpenApi;
 using GastosBackend.Presentation.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -57,6 +58,7 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
 builder.Services.AddScoped<IUserTokenRepository, UserTokenRepository>();
+builder.Services.AddScoped<IRecoveryCodeRepository, RecoveryCodeRepository>();
 builder.Services.AddScoped<IBudgetAlertRepository, BudgetAlertRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
@@ -69,6 +71,16 @@ builder.Services.AddScoped<IBudgetAlertService, BudgetAlertService>();
 builder.Services.AddSingleton<IBackgroundRunner, BackgroundRunner>();
 builder.Services.AddSingleton<IBudgetAlertDispatcher, BudgetAlertDispatcher>();
 builder.Services.AddScoped<IPasswordHash, PasswordHash>();
+
+// Two-step verification. The secrets are encrypted with Data Protection, and its keys live in the database: a container
+// loses its disk on every restart, and with it the keys, which would leave every secret unreadable.
+builder.Services.AddDataProtection()
+    .SetApplicationName("DualBalance")
+    .PersistKeysToDbContext<GastosDbContext>();
+builder.Services.AddSingleton<ITotpService, TotpService>();
+builder.Services.AddSingleton<ISecretProtector, SecretProtector>();
+builder.Services.AddSingleton<IRecoveryCodeGenerator, RecoveryCodeGenerator>();
+builder.Services.AddScoped<ITwoFactorService, TwoFactorService>();
 
 // External exchange rate API: named client + retry + circuit breaker + per-attempt timeout (Polly).
 // Tuned to fail fast: with the API down a request waits about 3.5 s at most (1.5 s + 0.5 s + 1.5 s),

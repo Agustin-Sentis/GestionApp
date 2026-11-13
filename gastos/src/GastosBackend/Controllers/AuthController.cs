@@ -33,12 +33,24 @@ namespace GastosBackend.Presentation.Controllers
         }
 
         /// <summary>
-        /// This endpoint signs in an existing user and returns a JWT.
+        /// This endpoint signs in an existing user and returns a JWT. If the user turned on the two-step verification, it returns
+        /// <c>requiresTwoFactor: true</c> and a <c>challengeToken</c> (valid for 5 minutes) instead of a JWT: send it, with the
+        /// code, to <c>2fa/verify</c>.
         /// </summary>
         [HttpPost("signin")]
-        public async Task<ActionResult<AuthResponse>> SignIn([FromBody] SignInRequest request)
+        public async Task<ActionResult<SignInResponse>> SignIn([FromBody] SignInRequest request)
         {
             return Ok(await _authService.SignIn(request));
+        }
+
+        /// <summary>
+        /// This endpoint finishes a sign in with two-step verification: the challenge token and the 6-digit code of the
+        /// authenticator app (or a recovery code) give the JWT. After 5 wrong codes in a row it answers 429 for 15 minutes.
+        /// </summary>
+        [HttpPost("2fa/verify")]
+        public async Task<ActionResult<AuthResponse>> VerifyTwoFactor([FromBody] VerifyTwoFactorRequest request)
+        {
+            return Ok(await _authService.VerifyTwoFactor(request));
         }
 
         /// <summary>

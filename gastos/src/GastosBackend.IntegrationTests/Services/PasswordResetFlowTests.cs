@@ -10,6 +10,7 @@ using GastosBackend.Infrastructure;
 using GastosBackend.Infrastructure.ExternalService;
 using GastosBackend.Infrastructure.Repository;
 using GastosBackend.IntegrationTests.Support;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Npgsql;
@@ -56,6 +57,14 @@ public class PasswordResetFlowTests
         }
     }
 
+    /// <summary>For the sign in of these tests: the confirmation mail of a sign up is not what they are about.</summary>
+    private sealed class NoBackgroundWork : IBackgroundRunner
+    {
+        public void Run<TService>(Func<TService, Task> work) where TService : notnull
+        {
+        }
+    }
+
     private sealed class Scenario
     {
         public required TestDatabase Database { get; init; }
@@ -81,10 +90,8 @@ public class PasswordResetFlowTests
         public async Task<AuthService> NewAuthService()
         {
             var context = Database.CreateContext();
-            return await Task.FromResult(new AuthService(
-                new UserRepository(context),
-                new PasswordHash(),
-                Options.Create(new JwtOptions { Key = new string('k', 40), Issuer = "Gastos", Audience = "GastosClients", ExpirationMinutes = 60 })));
+            return await Task.FromResult(AuthWiring.NewAuth(
+                context, new EphemeralDataProtectionProvider(), TimeProvider.System, new NoBackgroundWork()));
         }
 
         public UserSessionValidator NewValidator() => new(new UserRepository(Database.CreateContext()));
@@ -174,8 +181,8 @@ public class PasswordResetFlowTests
             await (await scenario.NewAuthService()).SignIn(new SignInRequest { Email = "ana@example.com", Password = OldPassword }));
 
         // The session of before is closed and the one of now is not
-        Assert.False(await scenario.NewValidator().IsValid(user.Id, IssuedAt(before.Token)));
-        Assert.True(await scenario.NewValidator().IsValid(user.Id, IssuedAt(after.Token)));
+        Assert.False(await scenario.NewValidator().IsValid(user.Id, IssuedAt(before.Token!)));
+        Assert.True(await scenario.NewValidator().IsValid(user.Id, IssuedAt(after.Token!)));
 
         // And the user was told
         Assert.Equal("Tu contraseña de DualBalance fue cambiada", scenario.Mail.Sent.Last().Subject);

@@ -106,6 +106,42 @@ namespace GastosBackend.Infrastructure.Migrations
                     b.ToTable("Categories");
                 });
 
+            modelBuilder.Entity("GastosBackend.Domain.Entities.RecoveryCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset>("CreatedDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("DeleteDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("UpdateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("UsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("RecoveryCodes");
+                });
+
             modelBuilder.Entity("GastosBackend.Domain.Entities.Transaction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -204,6 +240,21 @@ namespace GastosBackend.Infrastructure.Migrations
                     b.Property<DateTimeOffset?>("PasswordChangedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("TwoFactorEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("TwoFactorFailedAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<long?>("TwoFactorLastStep")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset?>("TwoFactorLockedUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TwoFactorSecret")
+                        .HasColumnType("text");
+
                     b.Property<DateTimeOffset>("UpdateDate")
                         .HasColumnType("timestamp with time zone");
 
@@ -260,6 +311,25 @@ namespace GastosBackend.Infrastructure.Migrations
                     b.ToTable("UserTokens");
                 });
 
+            modelBuilder.Entity("Microsoft.AspNetCore.DataProtection.EntityFrameworkCore.DataProtectionKey", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("FriendlyName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Xml")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("DataProtectionKeys");
+                });
+
             modelBuilder.Entity("GastosBackend.Domain.Entities.BudgetAlert", b =>
                 {
                     b.HasOne("GastosBackend.Domain.Entities.Category", null)
@@ -276,6 +346,15 @@ namespace GastosBackend.Infrastructure.Migrations
                 });
 
             modelBuilder.Entity("GastosBackend.Domain.Entities.Category", b =>
+                {
+                    b.HasOne("GastosBackend.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("GastosBackend.Domain.Entities.RecoveryCode", b =>
                 {
                     b.HasOne("GastosBackend.Domain.Entities.User", null)
                         .WithMany()

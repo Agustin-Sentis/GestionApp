@@ -15,5 +15,8 @@ namespace GastosBackend.Application.dtos.Responses
 
         /// <summary>The user confirmed the address with the link of the mail. Without it no alert is sent, even if they are turned on.</summary>
         public bool EmailConfirmed { get; set; }
+
+        /// <summary>The user turned on the two-step verification. The secret and the codes never travel here.</summary>
+        public bool TwoFactorEnabled { get; set; }
     }
 }

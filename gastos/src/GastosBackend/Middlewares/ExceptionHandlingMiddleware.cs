@@ -34,6 +34,7 @@ namespace GastosBackend.Presentation.Middlewares
         {
             int statusCode;
             string message;
+            int? retryAfterSeconds = null;
 
             switch (exception)
             {
@@ -57,6 +58,13 @@ namespace GastosBackend.Presentation.Middlewares
                     message = exception.Message;
                     break;
 
+                case TooManyRequestsException tooMany:
+                    statusCode = StatusCodes.Status429TooManyRequests;
+                    message = exception.Message;
+                    retryAfterSeconds = tooMany.RetryAfterSeconds;
+                    context.Response.Headers.RetryAfter = tooMany.RetryAfterSeconds.ToString();
+                    break;
+
                 case ExternalServiceException:
                     _logger.LogWarning(exception, "Falló un servicio externo");
                     statusCode = StatusCodes.Status503ServiceUnavailable;
@@ -73,7 +81,10 @@ namespace GastosBackend.Presentation.Middlewares
             context.Response.ContentType = "application/json";
             context.Response.StatusCode = statusCode;
 
-            var body = JsonSerializer.Serialize(new { error = message });
+            // The seconds are only in the body of a 429, so the screen can say how long to wait
+            var body = retryAfterSeconds is { } seconds
+                ? JsonSerializer.Serialize(new { error = message, retryAfterSeconds = seconds })
+                : JsonSerializer.Serialize(new { error = message });
             return context.Response.WriteAsync(body);
         }
     }

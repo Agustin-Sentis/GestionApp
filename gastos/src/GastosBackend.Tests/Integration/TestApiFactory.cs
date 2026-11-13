@@ -98,6 +98,7 @@ public class TestApiFactory : WebApplicationFactory<Program>
     private class FakeAuthService : IAuthService
     {
         public Task<AuthResponse> SignUp(SignUpRequest request) => Task.FromResult(new AuthResponse { Token = "jwt" });
-        public Task<AuthResponse> SignIn(SignInRequest request) => Task.FromResult(new AuthResponse { Token = "jwt" });
+        public Task<SignInResponse> SignIn(SignInRequest request) => Task.FromResult(new SignInResponse { Token = "jwt" });
+        public Task<AuthResponse> VerifyTwoFactor(VerifyTwoFactorRequest request) => Task.FromResult(new AuthResponse { Token = "jwt" });
     }
 }

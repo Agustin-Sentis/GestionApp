@@ -9,5 +9,10 @@ namespace GastosBackend.Infrastructure.ExternalService
             string hashedPassword = BCrypt.Net.BCrypt.HashPassword(password);
             return hashedPassword;
         }
+
+        public bool Verify(string password, string hash)
+        {
+            return BCrypt.Net.BCrypt.Verify(password, hash);
+        }
     }
 }

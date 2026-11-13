@@ -1,15 +1,20 @@
 using GastosBackend.Domain.Entities;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace GastosBackend.Infrastructure
 {
-    public class GastosDbContext : DbContext
+    public class GastosDbContext : DbContext, IDataProtectionKeyContext
     {
         public DbSet<User> Users { get; set; }
         public DbSet<Category> Categories { get; set; }
         public DbSet<Transaction> Transactions { get; set; }
         public DbSet<UserToken> UserTokens { get; set; }
         public DbSet<BudgetAlert> BudgetAlerts { get; set; }
+        public DbSet<RecoveryCode> RecoveryCodes { get; set; }
+
+        /// <summary>The keys that encrypt the 2FA secrets. They live in the database: a container loses its disk on every restart.</summary>
+        public DbSet<DataProtectionKey> DataProtectionKeys { get; set; }
 
         public GastosDbContext(DbContextOptions<GastosDbContext> options) : base(options)
         {
@@ -75,6 +80,18 @@ namespace GastosBackend.Infrastructure
                     .OnDelete(DeleteBehavior.Restrict);
 
                 entity.HasIndex(t => t.TokenHash);
+            });
+
+            modelBuilder.Entity<RecoveryCode>(entity =>
+            {
+                entity.Property(r => r.CodeHash).HasMaxLength(100).IsRequired();
+
+                entity.HasOne<User>()
+                    .WithMany()
+                    .HasForeignKey(r => r.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(r => r.UserId);
             });
 
             modelBuilder.Entity<BudgetAlert>(entity =>

@@ -26,5 +26,26 @@ namespace GastosBackend.Domain.Entities
         /// also lock out whoever had been using it. Null while the password was never reset.
         /// </summary>
         public DateTimeOffset? PasswordChangedAt { get; set; }
+
+        /// <summary>
+        /// Two-step verification is on: signing in also asks for a code from the authenticator app (or a recovery code).
+        /// Off by default; the user turns it on from their settings.
+        /// </summary>
+        public bool TwoFactorEnabled { get; set; }
+
+        /// <summary>
+        /// The TOTP secret, encrypted with Data Protection (it has to be readable to check the codes, so it cannot be a hash).
+        /// It is saved when the user starts turning the 2FA on, but it only counts once TwoFactorEnabled is true.
+        /// </summary>
+        public string? TwoFactorSecret { get; set; }
+
+        /// <summary>The last 30-second step of an accepted code, so the same code cannot be used twice.</summary>
+        public long? TwoFactorLastStep { get; set; }
+
+        /// <summary>Wrong codes (or passwords, in the 2FA settings) in a row. A correct code sets it back to zero.</summary>
+        public int TwoFactorFailedAttempts { get; set; }
+
+        /// <summary>While this is in the future, no code is accepted, not even a correct one. Null when not locked.</summary>
+        public DateTimeOffset? TwoFactorLockedUntil { get; set; }
     }
 }
