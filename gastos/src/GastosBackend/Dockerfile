@@ -1,5 +1,5 @@
 # Contexto de build: ./src (ver docker-compose.yml)
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 WORKDIR /src
 
 # Primero solo los .csproj: la capa de restore se cachea mientras no cambien las dependencias
