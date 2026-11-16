@@ -17,21 +17,22 @@
   <ItemGroup>
     <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
     <!-- Trae System.IdentityModel.Tokens.Jwt con las mismas versiones que usa el proyecto de presentación -->
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.15" />
     <!-- Explicit so every project that references Infrastructure gets the same EF Core the API runs with.
          Without it, Npgsql.EntityFrameworkCore.PostgreSQL 10.0.0 pulls EF Core 10.0.0 into the test projects. -->
     <!-- Data Protection encrypts the 2FA secrets; its keys are stored in the database (DataProtectionKeys) -->
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.9" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.15" />
     <!-- Same reason, one level down: the Npgsql provider asks for Relational 10.0.0, which clashed with the 10.0.9 the
          rest of EF Core uses (warning MSB3277). Pinning it here makes the whole graph agree. -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.9" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.9">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.15" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.15" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.15">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="10.0.9" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="10.0.15" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageReference Include="Otp.NET" Version="1.4.1" />
     <PackageReference Include="Polly" Version="8.7.0" />
     <!-- Data Protection brings 10.0.9 of this one, which has known vulnerabilities (NU1903). Pinned to a patched version. -->
