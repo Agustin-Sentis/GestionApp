@@ -15,7 +15,7 @@ COPY GastosBackend.Infrastructure/ GastosBackend.Infrastructure/
 COPY GastosBackend/ GastosBackend/
 RUN dotnet publish GastosBackend/GastosBackend.Presentation.csproj -c Release -o /app --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0
+FROM mcr.microsoft.com/dotnet/aspnet:11.0
 WORKDIR /app
 COPY --from=build /app .
 ENV ASPNETCORE_URLS=http://+:8080
