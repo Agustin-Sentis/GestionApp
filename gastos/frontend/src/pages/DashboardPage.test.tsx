@@ -10,10 +10,17 @@ import DashboardPage from './DashboardPage.tsx'
 
 // The chart library draws nothing useful in jsdom (it has no size): the table next to the chart is what is checked
 vi.mock('../components/ReportChart.tsx', () => ({ default: () => <div data-testid="chart" /> }))
+vi.mock('../components/EvolutionChart.tsx', () => ({ default: () => <div data-testid="evolution-chart" /> }))
 
 const report = {
   year: 2026, month: 11, currency: 'ARS', income: 0, expense: 1500, balance: -1500,
   byCategory: [], budgets: [], pendingConversions: [], hasUnconvertedUsd: false, previous: null,
+}
+
+const evolution = {
+  from: '2026-06', to: '2026-11', currency: 'ARS',
+  months: [{ year: 2026, month: 11, income: 0, expense: 1500, balance: -1500, hasUnconvertedUsd: false }],
+  totals: { income: 0, expense: 1500, balance: -1500 }, pendingConversions: [], hasUnconvertedUsd: false,
 }
 
 function setup(route = '/?mes=2026-11', extraRoutes: Parameters<typeof mockApi>[0] = {}) {
@@ -22,6 +29,7 @@ function setup(route = '/?mes=2026-11', extraRoutes: Parameters<typeof mockApi>[
     'GET /api/settings': () => ({ body: { dollarType: 'Official' } }),
     'GET /api/category': () => ({ body: [food] }),
     'GET /api/report/monthly': () => ({ body: report }),
+    'GET /api/report/evolution': () => ({ body: evolution }),
     'GET /api/transaction/paged': () => ({ body: pageOf([transaction()]) }),
     'PUT /api/transaction/t1': () => ({ status: 204 }),
     'DELETE /api/transaction/t1': () => ({ status: 204 }),
@@ -123,6 +131,66 @@ describe('DashboardPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Sí' }))
 
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Nuevo movimiento' })).toBeInTheDocument())
+  })
+
+  describe('the evolution', () => {
+    const evolutionRequests = (fetchMock: ReturnType<typeof setup>) =>
+      fetchMock.mock.calls.map(([url]) => new URL(String(url))).filter((u) => u.pathname === '/api/report/evolution')
+
+    it('shows the month summary and the budgets by default, with the switch on "Este mes"', async () => {
+      const fetchMock = setup()
+
+      expect(await screen.findByRole('heading', { name: 'Resumen del mes' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Presupuestos' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Este mes' })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.queryByRole('heading', { name: 'Evolución' })).not.toBeInTheDocument()
+      expect(evolutionRequests(fetchMock)).toHaveLength(0) // nothing is asked for until it is looked at
+    })
+
+    it('shows the evolution instead, without the budgets, when the address says so', async () => {
+      setup('/?mes=2026-11&vista=evolucion')
+
+      expect(await screen.findByRole('heading', { name: 'Evolución' })).toBeInTheDocument()
+      expect(await screen.findByTestId('evolution-chart')).toBeInTheDocument()
+      expect(screen.queryByRole('heading', { name: 'Resumen del mes' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('heading', { name: 'Presupuestos' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Evolución' })).toHaveAttribute('aria-pressed', 'true')
+    })
+
+    it('switches between the two views, and keeps the month that was on screen', async () => {
+      setup('/?mes=2026-03')
+      await screen.findByRole('heading', { name: 'Resumen del mes' })
+
+      await userEvent.click(screen.getByRole('button', { name: 'Evolución' }))
+      expect(await screen.findByRole('heading', { name: 'Evolución' })).toBeInTheDocument()
+      expect(screen.getByLabelText('Mes a visualizar')).toHaveValue('2026-03')
+
+      await userEvent.click(screen.getByRole('button', { name: 'Este mes' }))
+      expect(await screen.findByRole('heading', { name: 'Resumen del mes' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Presupuestos' })).toBeInTheDocument()
+      expect(screen.getByLabelText('Mes a visualizar')).toHaveValue('2026-03')
+    })
+
+    it('ends the shortcuts at the month on screen, and follows it when it changes', async () => {
+      const fetchMock = setup('/?mes=2026-11&vista=evolucion')
+      await screen.findByTestId('evolution-chart')
+      expect(evolutionRequests(fetchMock).at(-1)?.search).toBe('?from=2026-06&to=2026-11')
+
+      await userEvent.click(screen.getByRole('button', { name: 'Mes anterior' }))
+
+      await waitFor(() => expect(evolutionRequests(fetchMock).at(-1)?.search).toBe('?from=2026-05&to=2026-10'))
+    })
+
+    it('asks for the evolution again when a movement is saved', async () => {
+      const fetchMock = setup('/?mes=2026-11&vista=evolucion')
+      await screen.findByTestId('evolution-chart')
+      const before = evolutionRequests(fetchMock).length
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Editar movimiento de Comida' }))
+      await userEvent.click(await screen.findByRole('button', { name: 'Guardar cambios' }))
+
+      await waitFor(() => expect(evolutionRequests(fetchMock).length).toBeGreaterThan(before))
+    })
   })
 
   it('has the dollar selector in the header, next to the theme one', async () => {

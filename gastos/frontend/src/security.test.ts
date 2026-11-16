@@ -28,9 +28,9 @@ function policy(value: string | undefined): Record<string, string[]> {
   )
 }
 
-// Report-Only first: the browser reports what it WOULD block (in the console) without blocking anything. Once a session of
-// real use shows no violations, the header is renamed to Content-Security-Policy (see the README).
-const csp = policy(headerValue('Content-Security-Policy-Report-Only') ?? headerValue('Content-Security-Policy'))
+// It shipped first as Content-Security-Policy-Report-Only; a session of real use in production showed no violations, so it is
+// now enforced. The test reads only the enforcing header: a report-only one would not count as protection.
+const csp = policy(headerValue('Content-Security-Policy'))
 
 describe('index.html', () => {
   it('has no inline script: every script is a file of the app', () => {
