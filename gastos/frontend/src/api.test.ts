@@ -55,6 +55,14 @@ describe('requests', () => {
     expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/api\/report\/monthly\?year=2026&month=3$/)
   })
 
+  it('builds the query string of the evolution report', async () => {
+    const fetchMock = mockFetch(() => ({ body: [] }))
+
+    await api.reports.evolution('2026-06', '2026-11')
+
+    expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/api\/report\/evolution\?from=2026-06&to=2026-11$/)
+  })
+
   it('asks for a page of transactions with only the filters that are set', async () => {
     const fetchMock = mockFetch(() => ({ body: { items: [], total: 0, page: 2, pageSize: 10, totalPages: 0 } }))
 

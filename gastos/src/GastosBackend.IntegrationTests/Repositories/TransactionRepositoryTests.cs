@@ -576,4 +576,144 @@ public class TransactionRepositoryTests
         Assert.False(await repository.ExistsByCategory(onlyDeleted.Id));
         Assert.False(await repository.ExistsByCategory(empty.Id));
     }
+
+    // ---------- GetTotalsByMonth (the evolution report) ----------
+
+    [Fact]
+    public async Task TotalsByMonth_GroupEachMonthSeparately_AndConvertUsdWithItsOwnRate()
+    {
+        var database = await MigratedDatabase();
+        var user = await database.AddUserAsync();
+        var food = await database.AddCategoryAsync(user.Id, "Food", TransactionType.Expense);
+        var salary = await database.AddCategoryAsync(user.Id, "Salary", TransactionType.Income);
+        await database.AddTransactionAsync(user.Id, food.Id, "2026-11-03", amount: 1000m);
+        await database.AddTransactionAsync(user.Id, food.Id, "2026-11-04", amount: 500m);
+        await database.AddTransactionAsync(user.Id, food.Id, "2026-11-05", amount: 10m, currency: Currency.USD, exchangeRate: 1500m);
+        await database.AddTransactionAsync(user.Id, food.Id, "2026-11-06", amount: 2m, currency: Currency.USD, exchangeRate: 1600m);
+        await database.AddTransactionAsync(user.Id, food.Id, "2026-11-07", amount: 5m, currency: Currency.USD, exchangeRate: null);
+        await database.AddTransactionAsync(user.Id, salary.Id, "2026-11-08", amount: 100000m);
+        await database.AddTransactionAsync(user.Id, food.Id, "2026-12-02", amount: 70m);
+
+        await using var context = database.CreateContext();
+        var rows = await new TransactionRepository(context).GetTotalsByMonth(user.Id, November, new DateOnly(2027, 1, 1));
+
+        var novemberArs = rows.Single(r => r.Month == 11 && r.Type == TransactionType.Expense && r.Currency == Currency.ARS);
+        Assert.Equal((2026, 1500m, 0m), (novemberArs.Year, novemberArs.Total, novemberArs.PendingUsd));
+
+        // Each USD transaction is converted with its own rate: 10 * 1500 + 2 * 1600 = 18200. The 5 USD without a rate is pending.
+        var novemberUsd = rows.Single(r => r.Month == 11 && r.Currency == Currency.USD);
+        Assert.Equal((18200m, 5m), (novemberUsd.Total, novemberUsd.PendingUsd));
+
+        var income = rows.Single(r => r.Type == TransactionType.Income);
+        Assert.Equal((11, 100000m), (income.Month, income.Total));
+
+        var decemberRow = rows.Single(r => r.Month == 12);
+        Assert.Equal((2026, 70m), (decemberRow.Year, decemberRow.Total));
+
+        Assert.Equal(4, rows.Count);
+    }
+
+    [Fact]
+    public async Task TotalsByMonth_PutTheEdgesOfAMonthInTheirOwnMonth()
+    {
+        var database = await MigratedDatabase();
+        var user = await database.AddUserAsync();
+        var food = await database.AddCategoryAsync(user.Id, "Food");
+        await database.AddTransactionAsync(user.Id, food.Id, "2026-10-31", amount: 1m); // before the range
+        await database.AddTransactionAsync(user.Id, food.Id, "2026-11-01", amount: 10m);
+        await database.AddTransactionAsync(user.Id, food.Id, "2026-11-30", amount: 100m);
+        await database.AddTransactionAsync(user.Id, food.Id, "2026-12-01", amount: 1000m);
+        await database.AddTransactionAsync(user.Id, food.Id, "2027-01-01", amount: 10000m); // after the range
+
+        await using var context = database.CreateContext();
+        var rows = await new TransactionRepository(context).GetTotalsByMonth(user.Id, November, new DateOnly(2027, 1, 1));
+
+        Assert.Equal(110m, rows.Single(r => r.Month == 11).Total);
+        Assert.Equal(1000m, rows.Single(r => r.Month == 12).Total);
+        Assert.Equal(2, rows.Count);
+    }
+
+    [Fact]
+    public async Task TotalsByMonth_SeparateTheSameMonthOfDifferentYears()
+    {
+        var database = await MigratedDatabase();
+        var user = await database.AddUserAsync();
+        var food = await database.AddCategoryAsync(user.Id, "Food");
+        await database.AddTransactionAsync(user.Id, food.Id, "2025-12-15", amount: 5m);
+        await database.AddTransactionAsync(user.Id, food.Id, "2026-12-15", amount: 7m);
+
+        await using var context = database.CreateContext();
+        var rows = await new TransactionRepository(context).GetTotalsByMonth(user.Id, new DateOnly(2025, 12, 1), new DateOnly(2027, 1, 1));
+
+        Assert.Equal(5m, rows.Single(r => r.Year == 2025).Total);
+        Assert.Equal(7m, rows.Single(r => r.Year == 2026).Total);
+    }
+
+    [Fact]
+    public async Task TotalsByMonth_IgnoreOtherUsers_AndDeletedTransactions()
+    {
+        var database = await MigratedDatabase();
+        var user = await database.AddUserAsync();
+        var otherUser = await database.AddUserAsync();
+        var food = await database.AddCategoryAsync(user.Id, "Food");
+        var otherFood = await database.AddCategoryAsync(otherUser.Id, "Food");
+        await database.AddTransactionAsync(user.Id, food.Id, "2026-11-05", amount: 10m);
+        await database.AddTransactionAsync(user.Id, food.Id, "2026-11-06", amount: 999m, deleted: true);
+        await database.AddTransactionAsync(otherUser.Id, otherFood.Id, "2026-11-07", amount: 777m);
+
+        await using var context = database.CreateContext();
+        var rows = await new TransactionRepository(context).GetTotalsByMonth(user.Id, November, December);
+
+        Assert.Equal(10m, rows.Single().Total);
+    }
+
+    [Fact]
+    public async Task TotalsByMonth_KeepTheExactDecimalsOfTheConversion()
+    {
+        var database = await MigratedDatabase();
+        var user = await database.AddUserAsync();
+        var food = await database.AddCategoryAsync(user.Id, "Food");
+        await database.AddTransactionAsync(user.Id, food.Id, "2026-11-05", amount: 10.5m, currency: Currency.USD, exchangeRate: 1570.1234m);
+
+        await using var context = database.CreateContext();
+        var rows = await new TransactionRepository(context).GetTotalsByMonth(user.Id, November, December);
+
+        Assert.Equal(16486.2957m, rows.Single().Total); // 10.5 * 1570.1234, no rounding in SQL
+    }
+
+    [Fact]
+    public async Task TotalsByMonth_ConvertWithTheDollarEachTransactionWasSavedWith_AndSplitOnlyDollars()
+    {
+        var database = await MigratedDatabase();
+        var user = await database.AddUserAsync();
+        var food = await database.AddCategoryAsync(user.Id, "Food");
+        await database.AddTransactionAsync(user.Id, food.Id, "2026-11-03", amount: 100m); // pesos: no dollar to split by
+        await database.AddTransactionAsync(user.Id, food.Id, "2026-11-04", amount: 200m);
+        await database.AddTransactionAsync(
+            user.Id, food.Id, "2026-11-05", amount: 10m, currency: Currency.USD, exchangeRate: 1500m,
+            blueExchangeRate: 1400m, mepExchangeRate: 1600m, dollarType: DollarType.Blue);
+        await database.AddTransactionAsync(
+            user.Id, food.Id, "2026-11-06", amount: 10m, currency: Currency.USD, exchangeRate: 1500m,
+            blueExchangeRate: 1400m, mepExchangeRate: 1600m, dollarType: DollarType.Mep);
+
+        await using var context = database.CreateContext();
+        var rows = await new TransactionRepository(context).GetTotalsByMonth(user.Id, November, December);
+
+        Assert.Equal(3, rows.Count);
+        Assert.Equal(300m, rows.Single(r => r.Currency == Currency.ARS).Total);
+        Assert.Equal(14000m, rows.Single(r => r.DollarType == DollarType.Blue && r.Currency == Currency.USD).Total);
+        Assert.Equal(16000m, rows.Single(r => r.DollarType == DollarType.Mep && r.Currency == Currency.USD).Total);
+    }
+
+    [Fact]
+    public async Task TotalsByMonth_AreEmpty_WhenTheRangeHasNoTransactions()
+    {
+        var database = await MigratedDatabase();
+        var user = await database.AddUserAsync();
+
+        await using var context = database.CreateContext();
+        var rows = await new TransactionRepository(context).GetTotalsByMonth(user.Id, November, December);
+
+        Assert.Empty(rows);
+    }
 }

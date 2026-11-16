@@ -26,5 +26,16 @@ namespace GastosBackend.Presentation.Controllers
         {
             return Ok(await _reportService.GetMonthly(year, month, UserId));
         }
+
+        /// <summary>
+        /// This endpoint returns, in ARS, the income, expenses and balance of each month from "from" to "to" (yyyy-MM, both
+        /// included, at most 24 months) plus the totals of the period. Months with no movements come with zeros. USD
+        /// transactions are converted like in the monthly report: with the rate stored with each one.
+        /// </summary>
+        [HttpGet("evolution")]
+        public async Task<ActionResult<EvolutionReportResponse>> GetEvolution([FromQuery] string from, [FromQuery] string to)
+        {
+            return Ok(await _reportService.GetEvolution(from, to, UserId));
+        }
     }
 }

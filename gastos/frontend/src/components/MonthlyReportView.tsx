@@ -4,9 +4,8 @@ import { useSearchParams } from 'react-router-dom'
 import { api } from '../api.ts'
 import { buildChartView, categoryOrder, CHART_KINDS, defaultChartKind, isChartKind } from '../chartData.ts'
 import type { ChartKind } from '../chartData.ts'
-import { DOLLAR_NAMES } from '../dollar.ts'
-import { formatMoney } from '../format.ts'
 import BreakdownTable from './BreakdownTable.tsx'
+import PendingConversionNotes from './PendingConversionNotes.tsx'
 import { Skeleton, SkeletonGroup } from './Skeleton.tsx'
 
 // The chart library is heavy: it is downloaded the first time a chart is needed, not with the rest of the app
@@ -67,20 +66,7 @@ export default function MonthlyReportView({ year, month }: { year: number; month
     <section className="card">
       <h2 className="panel-title">Resumen del mes</h2>
 
-      {/* A movement saved without the rate of its dollar is converted with today's, and the report says so for each dollar */}
-      {data.pendingConversions.map((pending) =>
-        pending.rate !== null ? (
-          <p key={pending.dollarType} className="muted text-sm">
-            Algunos movimientos en USD guardados con el dólar {DOLLAR_NAMES[pending.dollarType]} no tenían su cotización: se
-            convirtieron con la de hoy, {formatMoney(pending.rate)}.
-          </p>
-        ) : (
-          <p key={pending.dollarType} className="error-text" role="status">
-            No se pudo obtener la cotización {DOLLAR_NAMES[pending.dollarType]}: algunos movimientos en USD no están sumados
-            en estos totales.
-          </p>
-        ),
-      )}
+      <PendingConversionNotes pending={data.pendingConversions} />
 
       <label className="field self-start">
         Gráfico

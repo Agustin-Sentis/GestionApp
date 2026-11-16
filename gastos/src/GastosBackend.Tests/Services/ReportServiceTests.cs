@@ -31,7 +31,25 @@ public class ReportServiceTests
         _transactionRepositoryMock
             .Setup(r => r.GetMonthlyTotals(It.IsAny<Guid>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
             .ReturnsAsync(new List<CategoryTotalRow>());
+
+        // A range nobody set up has no movements either
+        _transactionRepositoryMock
+            .Setup(r => r.GetTotalsByMonth(It.IsAny<Guid>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(new List<MonthTotalRow>());
     }
+
+    private void SetupTotalsByMonth(params MonthTotalRow[] rows) =>
+        _transactionRepositoryMock
+            .Setup(r => r.GetTotalsByMonth(_userId, It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(rows.ToList());
+
+    private static MonthTotalRow MonthRow(
+        int year, int month, TransactionType type, Currency currency, decimal total, decimal pendingUsd = 0m,
+        DollarType dollar = DollarType.Official)
+        => new MonthTotalRow
+        {
+            Year = year, Month = month, Type = type, Currency = currency, Total = total, PendingUsd = pendingUsd, DollarType = dollar
+        };
 
     private void SetupRows(params CategoryTotalRow[] rows) => SetupMonth(new DateOnly(2026, 11, 1), rows);
 
@@ -392,5 +410,161 @@ public class ReportServiceTests
         Assert.False(report.HasUnconvertedUsd);
         Assert.True(report.Previous!.HasUnconvertedUsd);
         Assert.Equal(2000m, report.Previous.Expense); // the pending USD is left out, as in the report itself
+    }
+
+    // ---------- GetEvolution ----------
+
+    [Fact]
+    public async Task GetEvolution_ReturnsOneEntryPerMonthOfTheRange_WithEmptyMonthsInZero()
+    {
+        SetupTotalsByMonth(
+            MonthRow(2026, 9, TransactionType.Income, Currency.ARS, 1000m),
+            MonthRow(2026, 9, TransactionType.Expense, Currency.ARS, 400m),
+            MonthRow(2026, 11, TransactionType.Expense, Currency.ARS, 250m));
+
+        var report = await _reportService.GetEvolution("2026-09", "2026-11", _userId);
+
+        Assert.Equal(("2026-09", "2026-11", "ARS"), (report.From, report.To, report.Currency));
+        Assert.Equal(new[] { 9, 10, 11 }, report.Months.Select(m => m.Month));
+        Assert.All(report.Months, m => Assert.Equal(2026, m.Year));
+
+        var september = report.Months[0];
+        Assert.Equal((1000m, 400m, 600m), (september.Income, september.Expense, september.Balance));
+
+        var october = report.Months[1]; // no movements: a month in zero, not a hole
+        Assert.Equal((0m, 0m, 0m, false), (october.Income, october.Expense, october.Balance, october.HasUnconvertedUsd));
+
+        var november = report.Months[2];
+        Assert.Equal((0m, 250m, -250m), (november.Income, november.Expense, november.Balance));
+    }
+
+    [Fact]
+    public async Task GetEvolution_CrossesYears_InOrder()
+    {
+        SetupTotalsByMonth(
+            MonthRow(2026, 1, TransactionType.Expense, Currency.ARS, 20m),
+            MonthRow(2025, 12, TransactionType.Expense, Currency.ARS, 10m));
+
+        var report = await _reportService.GetEvolution("2025-11", "2026-01", _userId);
+
+        Assert.Equal(new[] { (2025, 11), (2025, 12), (2026, 1) }, report.Months.Select(m => (m.Year, m.Month)));
+        Assert.Equal(new[] { 0m, 10m, 20m }, report.Months.Select(m => m.Expense));
+    }
+
+    [Fact]
+    public async Task GetEvolution_AddsUpTheTotalsOfThePeriod()
+    {
+        SetupTotalsByMonth(
+            MonthRow(2026, 10, TransactionType.Income, Currency.ARS, 1000m),
+            MonthRow(2026, 10, TransactionType.Expense, Currency.ARS, 300m),
+            MonthRow(2026, 11, TransactionType.Income, Currency.ARS, 500m),
+            MonthRow(2026, 11, TransactionType.Expense, Currency.ARS, 900m));
+
+        var report = await _reportService.GetEvolution("2026-10", "2026-11", _userId);
+
+        Assert.Equal((1500m, 1200m, 300m), (report.Totals.Income, report.Totals.Expense, report.Totals.Balance));
+    }
+
+    [Fact]
+    public async Task GetEvolution_SumsPesosAndUsdOfTheSameMonth_AndKindOfMovement()
+    {
+        SetupTotalsByMonth(
+            MonthRow(2026, 11, TransactionType.Expense, Currency.ARS, 1500m),
+            MonthRow(2026, 11, TransactionType.Expense, Currency.USD, 18200m, dollar: DollarType.Blue));
+
+        var report = await _reportService.GetEvolution("2026-11", "2026-11", _userId);
+
+        Assert.Equal(19700m, Assert.Single(report.Months).Expense);
+    }
+
+    [Fact]
+    public async Task GetEvolution_ConvertsPendingUsdWithTheCurrentRate_AskingEachDollarOnce()
+    {
+        SetupCurrentRate(DollarType.Blue, 1000m);
+        SetupTotalsByMonth(
+            MonthRow(2026, 10, TransactionType.Expense, Currency.USD, 0m, pendingUsd: 5m, dollar: DollarType.Blue),
+            MonthRow(2026, 11, TransactionType.Expense, Currency.USD, 2000m, pendingUsd: 10m, dollar: DollarType.Blue));
+
+        var report = await _reportService.GetEvolution("2026-10", "2026-11", _userId);
+
+        Assert.Equal(5000m, report.Months[0].Expense);
+        Assert.Equal(12000m, report.Months[1].Expense); // 2000 already converted + 10 USD * 1000
+        Assert.Equal(17000m, report.Totals.Expense);
+
+        var pending = Assert.Single(report.PendingConversions);
+        Assert.Equal((DollarType.Blue, (decimal?)1000m), (pending.DollarType, pending.Rate));
+        Assert.False(report.HasUnconvertedUsd);
+        _dolarApiServiceMock.Verify(s => s.GetUsdSellRate(DollarType.Blue), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetEvolution_DoesNotAskForAnyRate_WhenNothingIsPending()
+    {
+        SetupTotalsByMonth(MonthRow(2026, 11, TransactionType.Expense, Currency.USD, 15000m));
+
+        var report = await _reportService.GetEvolution("2026-11", "2026-11", _userId);
+
+        Assert.Empty(report.PendingConversions);
+        _dolarApiServiceMock.Verify(s => s.GetUsdSellRate(It.IsAny<DollarType>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetEvolution_WhenARateIsDown_LeavesThoseOutAndFlagsOnlyTheirMonth()
+    {
+        SetupRateDown(DollarType.Official);
+        SetupTotalsByMonth(
+            MonthRow(2026, 10, TransactionType.Expense, Currency.ARS, 100m),
+            MonthRow(2026, 11, TransactionType.Expense, Currency.USD, 2000m, pendingUsd: 10m));
+
+        var report = await _reportService.GetEvolution("2026-10", "2026-11", _userId);
+
+        Assert.False(report.Months[0].HasUnconvertedUsd);
+        Assert.True(report.Months[1].HasUnconvertedUsd);
+        Assert.Equal(2000m, report.Months[1].Expense); // the pending USD is left out, as in the monthly report
+        Assert.True(report.HasUnconvertedUsd);
+
+        var pending = Assert.Single(report.PendingConversions);
+        Assert.Null(pending.Rate);
+    }
+
+    [Fact]
+    public async Task GetEvolution_AsksTheRepositoryOnceForTheWholeRange()
+    {
+        await _reportService.GetEvolution("2026-06", "2026-11", _userId);
+
+        _transactionRepositoryMock.Verify(
+            r => r.GetTotalsByMonth(_userId, new DateOnly(2026, 6, 1), new DateOnly(2026, 12, 1)), Times.Once);
+        _transactionRepositoryMock.Verify(
+            r => r.GetMonthlyTotals(It.IsAny<Guid>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetEvolution_AcceptsASingleMonth_AndExactly24Months()
+    {
+        var single = await _reportService.GetEvolution("2026-11", "2026-11", _userId);
+        var twoYears = await _reportService.GetEvolution("2025-01", "2026-12", _userId);
+
+        Assert.Single(single.Months);
+        Assert.Equal(24, twoYears.Months.Count);
+    }
+
+    [Theory]
+    [InlineData("2026-6", "2026-11", "El rango debe tener el formato AAAA-MM.")]
+    [InlineData("2026-13", "2026-11", "El rango debe tener el formato AAAA-MM.")]
+    [InlineData("2026-00", "2026-11", "El rango debe tener el formato AAAA-MM.")]
+    [InlineData("abc", "2026-11", "El rango debe tener el formato AAAA-MM.")]
+    [InlineData("2026-06", "", "El rango debe tener el formato AAAA-MM.")]
+    [InlineData("2026-06-01", "2026-11", "El rango debe tener el formato AAAA-MM.")]
+    [InlineData("2026-11", "2026-10", "El mes inicial no puede ser posterior al final.")]
+    [InlineData("2024-12", "2026-12", "El rango no puede superar los 24 meses.")] // 25 months
+    [InlineData("1999-12", "2000-03", "El año o el mes no son válidos.")]
+    [InlineData("2100-11", "2101-01", "El año o el mes no son válidos.")]
+    public async Task GetEvolution_RejectsInvalidRanges(string from, string to, string message)
+    {
+        var error = await Assert.ThrowsAsync<ValidationException>(() => _reportService.GetEvolution(from, to, _userId));
+
+        Assert.Equal(message, error.Message);
+        _transactionRepositoryMock.Verify(
+            r => r.GetTotalsByMonth(It.IsAny<Guid>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>()), Times.Never);
     }
 }

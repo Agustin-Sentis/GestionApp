@@ -3,6 +3,7 @@ using GastosBackend.Application.Exceptions;
 using GastosBackend.Application.Interfaces;
 using GastosBackend.Domain.Entities;
 using GastosBackend.Domain.Enums;
+using System.Text.RegularExpressions;
 
 namespace GastosBackend.Application.Services
 {
@@ -10,6 +11,15 @@ namespace GastosBackend.Application.Services
     {
         /// <summary>The first year the app accepts. The month before January of this year is not reported.</summary>
         private const int FirstYear = 2000;
+
+        /// <summary>The last year the app accepts.</summary>
+        private const int LastYear = 2100;
+
+        /// <summary>The longest range the evolution report answers, both months included.</summary>
+        private const int MaxEvolutionMonths = 24;
+
+        /// <summary>A month as the evolution report receives it: four digits of year, a dash and two of month (01-12).</summary>
+        private static readonly Regex MonthFormat = new(@"^\d{4}-(0[1-9]|1[0-2])$", RegexOptions.Compiled);
 
         /// <summary>From this share of the budget on, a category is "close to the limit".</summary>
         private const decimal WarningShare = 0.8m;
@@ -30,7 +40,7 @@ namespace GastosBackend.Application.Services
 
         public async Task<MonthlyReportResponse> GetMonthly(int year, int month, Guid userId)
         {
-            if (month < 1 || month > 12 || year < FirstYear || year > 2100)
+            if (month < 1 || month > 12 || year < FirstYear || year > LastYear)
             {
                 throw new ValidationException("El año o el mes no son válidos.");
             }
@@ -70,6 +80,96 @@ namespace GastosBackend.Application.Services
                 Previous = previousRows == null ? null : await SummarizePreviousMonth(previousFrom, previousRows, rates)
             };
         }
+
+        public async Task<EvolutionReportResponse> GetEvolution(string from, string to, Guid userId)
+        {
+            var first = ParseMonth(from);
+            var last = ParseMonth(to);
+
+            if (first.Year < FirstYear || first.Year > LastYear || last.Year < FirstYear || last.Year > LastYear)
+            {
+                throw new ValidationException("El año o el mes no son válidos.");
+            }
+            if (first > last)
+            {
+                throw new ValidationException("El mes inicial no puede ser posterior al final.");
+            }
+
+            var monthCount = (last.Year - first.Year) * 12 + last.Month - first.Month + 1;
+            if (monthCount > MaxEvolutionMonths)
+            {
+                throw new ValidationException($"El rango no puede superar los {MaxEvolutionMonths} meses.");
+            }
+
+            // One query for the whole range: the database groups by month
+            var rows = await _transactionRepository.GetTotalsByMonth(userId, first, last.AddMonths(1));
+            var byMonth = rows.ToLookup(r => (r.Year, r.Month));
+
+            // Same rule as the monthly report: the current rate is only asked for the dollars that have pending USD, once
+            // each, and a rate that is not available leaves those transactions out of the totals
+            var rates = new CurrentRates(_dolarApiService);
+            var pending = new List<PendingConversion>();
+            var rateOf = new Dictionary<DollarType, decimal?>();
+            foreach (var type in rows.Where(r => r.PendingUsd > 0).Select(r => r.DollarType).Distinct().OrderBy(t => t))
+            {
+                var rate = await rates.Get(type);
+                rateOf[type] = rate;
+                pending.Add(new PendingConversion { DollarType = type, Rate = rate });
+            }
+
+            decimal Sum(IEnumerable<MonthTotalRow> monthRows) =>
+                Math.Round(monthRows.Sum(r => ToArs(r.Total, r.PendingUsd, r.PendingUsd > 0 ? rateOf[r.DollarType] : null)), 2);
+
+            // Months with no movements are in the answer with zeros, so a chart has no holes
+            var months = Enumerable.Range(0, monthCount)
+                .Select(offset =>
+                {
+                    var date = first.AddMonths(offset);
+                    var monthRows = byMonth[(date.Year, date.Month)].ToList();
+                    var income = Sum(monthRows.Where(r => r.Type == TransactionType.Income));
+                    var expense = Sum(monthRows.Where(r => r.Type == TransactionType.Expense));
+
+                    return new MonthEvolutionResponse
+                    {
+                        Year = date.Year,
+                        Month = date.Month,
+                        Income = income,
+                        Expense = expense,
+                        Balance = income - expense,
+                        HasUnconvertedUsd = monthRows.Any(r => r.PendingUsd > 0 && rateOf[r.DollarType] == null)
+                    };
+                })
+                .ToList();
+
+            var totalIncome = months.Sum(m => m.Income);
+            var totalExpense = months.Sum(m => m.Expense);
+
+            return new EvolutionReportResponse
+            {
+                From = from,
+                To = to,
+                Currency = "ARS",
+                Months = months,
+                Totals = new PeriodTotalsResponse { Income = totalIncome, Expense = totalExpense, Balance = totalIncome - totalExpense },
+                PendingConversions = pending,
+                HasUnconvertedUsd = pending.Any(p => p.Rate == null)
+            };
+        }
+
+        /// <summary>The first day of a month written yyyy-MM. Anything else (including a missing value) is a validation error.</summary>
+        private static DateOnly ParseMonth(string? value)
+        {
+            if (value is null || !MonthFormat.IsMatch(value))
+            {
+                throw new ValidationException("El rango debe tener el formato AAAA-MM.");
+            }
+
+            return new DateOnly(int.Parse(value[..4]), int.Parse(value[5..]), 1);
+        }
+
+        /// <summary>A total in ARS plus the USD that had no stored rate, converted with the current one (left out when there is none).</summary>
+        private static decimal ToArs(decimal total, decimal pendingUsd, decimal? rate) =>
+            total + (pendingUsd > 0 && rate is { } current ? pendingUsd * current : 0m);
 
         /// <summary>
         /// The budget of each expense category that has one, measured against what the month spent on it. A category with no
@@ -122,16 +222,13 @@ namespace GastosBackend.Application.Services
                 pending.Add(new PendingConversion { DollarType = type, Rate = rate });
             }
 
-            decimal ToArs(CategoryTotalRow row) =>
-                row.Total + (row.PendingUsd > 0 && rateOf[row.DollarType] is { } rate ? row.PendingUsd * rate : 0m);
-
             var byCategory = rows
                 .GroupBy(r => new { r.Name, r.Type })
                 .Select(g => new CategoryTotalResponse
                 {
                     Name = g.Key.Name,
                     Type = g.Key.Type,
-                    Total = Math.Round(g.Sum(r => ToArs(r)), 2)
+                    Total = Math.Round(g.Sum(r => ToArs(r.Total, r.PendingUsd, r.PendingUsd > 0 ? rateOf[r.DollarType] : null)), 2)
                 })
                 .OrderByDescending(c => c.Total)
                 .ToList();

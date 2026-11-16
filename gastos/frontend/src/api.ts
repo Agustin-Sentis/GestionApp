@@ -158,6 +158,40 @@ export interface MonthlyReport {
   previous: PreviousMonth | null
 }
 
+/** One month of the evolution report: the same figures as the monthly report, without the breakdown by category. */
+export interface MonthEvolution {
+  year: number
+  month: number
+  income: number
+  expense: number
+  balance: number
+  /** True when some USD movements of that month were left out for lack of a rate: its figures are incomplete. */
+  hasUnconvertedUsd: boolean
+}
+
+/** The sum of every month of a period, in pesos. */
+export interface PeriodTotals {
+  income: number
+  expense: number
+  balance: number
+}
+
+/**
+ * Income, expenses and balance month by month, from `from` to `to` (yyyy-MM, both included). A month with no movements is
+ * in the list with zeros. Converted with the same rules as the monthly report.
+ */
+export interface EvolutionReport {
+  from: string
+  to: string
+  currency: string
+  months: MonthEvolution[]
+  totals: PeriodTotals
+  /** The dollars whose today's rate was needed to complete the figures, for movements that were saved without their rate. */
+  pendingConversions: PendingConversion[]
+  /** True when some USD movements were left out of the figures because no rate was available. */
+  hasUnconvertedUsd: boolean
+}
+
 /** One page of a list, plus how many items match in total. */
 export interface PagedResult<T> {
   items: T[]
@@ -392,5 +426,8 @@ export const api = {
   reports: {
     monthly: (year: number, month: number) =>
       request<MonthlyReport>(`/api/report/monthly?year=${year}&month=${month}`),
+    /** Month by month totals from `from` to `to` (yyyy-MM, both included, at most 24 months). */
+    evolution: (from: string, to: string) =>
+      request<EvolutionReport>(`/api/report/evolution?from=${from}&to=${to}`),
   },
 }

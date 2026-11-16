@@ -90,5 +90,41 @@ namespace GastosBackend.Infrastructure.Repository
                 })
                 .ToListAsync();
         }
+
+        public async Task<List<MonthTotalRow>> GetTotalsByMonth(Guid userId, DateOnly from, DateOnly toExclusive)
+        {
+            return await _dbSet
+                .Where(t => t.UserId == userId && !t.IsDeleted && t.Date >= from && t.Date < toExclusive)
+                .Select(t => new
+                {
+                    t.Date.Year,
+                    t.Date.Month,
+                    t.Category!.Type,
+                    t.Currency,
+                    t.Amount,
+                    // Same rules as GetMonthlyTotals: only dollars have a dollar type, and each transaction is converted
+                    // with the rate of the dollar IT was saved with
+                    DollarType = t.Currency == Currency.USD ? t.DollarType : DollarType.Official,
+                    Rate = t.DollarType == DollarType.Blue ? t.BlueExchangeRate
+                        : t.DollarType == DollarType.Mep ? t.MepExchangeRate
+                        : t.ExchangeRate
+                })
+                .GroupBy(t => new { t.Year, t.Month, t.Type, t.Currency, t.DollarType })
+                .Select(g => new MonthTotalRow
+                {
+                    Year = g.Key.Year,
+                    Month = g.Key.Month,
+                    Type = g.Key.Type,
+                    Currency = g.Key.Currency,
+                    DollarType = g.Key.DollarType,
+                    Total = g.Sum(t => t.Currency == Currency.ARS
+                        ? t.Amount
+                        : (t.Rate != null ? t.Amount * t.Rate.Value : 0m)),
+                    PendingUsd = g.Sum(t => t.Currency == Currency.USD && t.Rate == null ? t.Amount : 0m)
+                })
+                .OrderBy(r => r.Year)
+                .ThenBy(r => r.Month)
+                .ToListAsync();
+        }
     }
 }

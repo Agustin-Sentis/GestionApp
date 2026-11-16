@@ -26,5 +26,11 @@ namespace GastosBackend.Application.Interfaces
         /// los que no la tienen quedan en PendingUsd.
         /// </summary>
         Task<List<CategoryTotalRow>> GetMonthlyTotals(Guid userId, DateOnly from, DateOnly toExclusive);
+
+        /// <summary>
+        /// Lo mismo que <see cref="GetMonthlyTotals"/> (misma conversión, mismas reglas de dólar) pero agrupado por mes
+        /// en lugar de por categoría, para varios meses en una sola consulta. Un mes sin movimientos no aparece.
+        /// </summary>
+        Task<List<MonthTotalRow>> GetTotalsByMonth(Guid userId, DateOnly from, DateOnly toExclusive);
     }
 }

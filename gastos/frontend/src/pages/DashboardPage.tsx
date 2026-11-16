@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import type { Transaction } from '../api.ts'
 import { useAuth } from '../auth.tsx'
 import { MAX_MONTH, MIN_MONTH, addMonths, parseMonthValue } from '../format.ts'
@@ -10,14 +11,21 @@ import BudgetPanel from '../components/BudgetPanel.tsx'
 import CategoryManager from '../components/CategoryManager.tsx'
 import DollarTypeToggle from '../components/DollarTypeToggle.tsx'
 import EmailStatusChip from '../components/EmailStatusChip.tsx'
+import EvolutionView from '../components/EvolutionView.tsx'
 import MonthStats from '../components/MonthStats.tsx'
 import SettingsButton from '../components/SettingsButton.tsx'
 import SettingsModal from '../components/SettingsModal.tsx'
 import type { SettingsSection } from '../components/SettingsModal.tsx'
 import MonthlyReportView from '../components/MonthlyReportView.tsx'
+import SummaryModeToggle from '../components/SummaryModeToggle.tsx'
+import type { SummaryMode } from '../components/SummaryModeToggle.tsx'
 import ThemeToggle from '../components/ThemeToggle.tsx'
 import TransactionForm from '../components/TransactionForm.tsx'
 import TransactionList from '../components/TransactionList.tsx'
+
+/** The address parameter that says which view the summary has, and its value for the evolution (the month is the default). */
+const SUMMARY_MODE_PARAM = 'vista'
+const EVOLUTION_MODE = 'evolucion'
 
 /** The three parts of the screen. On a wide screen they sit side by side; on a narrow one each is a tab. */
 type View = 'resumen' | 'libro' | 'anotar'
@@ -38,7 +46,8 @@ function Panel({ id, current, children }: { id: View; current: View; children: R
       role="tabpanel"
       id={`panel-${id}`}
       aria-labelledby={`tab-${id}`}
-      className={`min-h-0 min-w-0 flex-col gap-3 overflow-x-hidden overflow-y-auto overscroll-contain xl:flex ${current === id ? 'flex' : 'hidden'}`}
+      // pb-16: room at the end for the floating settings button, so the last thing in a panel can be scrolled clear of it
+      className={`min-h-0 min-w-0 flex-col gap-3 overflow-x-hidden overflow-y-auto overscroll-contain pb-16 xl:flex ${current === id ? 'flex' : 'hidden'}`}
     >
       {children}
     </div>
@@ -63,6 +72,22 @@ export default function DashboardPage() {
   // The month (and the list's filters) live in the URL, so a reload or a shared link shows the same view
   const { filters, setMonth } = useListFilters()
   const { year, month } = parseMonthValue(filters.month)
+
+  // Also in the URL: the summary shows the month on screen, or how the months have evolved (?vista=evolucion)
+  const [params, setParams] = useSearchParams()
+  const summaryMode: SummaryMode = params.get(SUMMARY_MODE_PARAM) === EVOLUTION_MODE ? 'evolucion' : 'mes'
+
+  function chooseSummaryMode(mode: SummaryMode) {
+    setParams(
+      (previous) => {
+        const next = new URLSearchParams(previous)
+        if (mode === 'evolucion') next.set(SUMMARY_MODE_PARAM, EVOLUTION_MODE)
+        else next.delete(SUMMARY_MODE_PARAM)
+        return next
+      },
+      { replace: true },
+    )
+  }
 
   function startEditing(transaction: Transaction) {
     setEditing(transaction)
@@ -139,8 +164,16 @@ export default function DashboardPage() {
 
         <main className="grid min-h-0 flex-1 gap-3 p-3 sm:p-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,0.85fr)]">
           <Panel id="resumen" current={view}>
-            <MonthlyReportView year={year} month={month} />
-            <BudgetPanel year={year} month={month} onOpenSettings={openSettings} />
+            <SummaryModeToggle mode={summaryMode} onChange={chooseSummaryMode} />
+            {summaryMode === 'evolucion' ? (
+              // The budgets are of one month: they do not belong to the evolution
+              <EvolutionView selectedMonth={filters.month} />
+            ) : (
+              <>
+                <MonthlyReportView year={year} month={month} />
+                <BudgetPanel year={year} month={month} onOpenSettings={openSettings} />
+              </>
+            )}
           </Panel>
 
           <Panel id="libro" current={view}>
