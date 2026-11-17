@@ -27,14 +27,15 @@ export default function MonthStats({ year, month }: { year: number; month: numbe
   // If the report failed, the summary panel is the one that explains it
   if (!data) return null
 
+  // The red of the expenses says "you spent": with nothing spent (or nothing earned) the figure is plain, not an alarm
   const stillHave = data.balance >= 0
   const comparisons = compareWithPrevious(data, data.previous)
 
   return (
     // A figure is never cut in the middle: if the three do not fit in a row, the last one goes down to the next line
     <dl className="flex flex-wrap gap-x-6 gap-y-2">
-      <Figure label="Ingresos" value={formatMoneyCompact(data.income)} className="text-income" comparison={comparisons.income} />
-      <Figure label="Gastos" value={formatMoneyCompact(data.expense)} className="text-expense" comparison={comparisons.expense} />
+      <Figure label="Ingresos" value={formatMoneyCompact(data.income)} className={data.income > 0 ? 'text-income' : 'text-ink-soft'} comparison={comparisons.income} />
+      <Figure label="Gastos" value={formatMoneyCompact(data.expense)} className={data.expense > 0 ? 'text-expense' : 'text-ink-soft'} comparison={comparisons.expense} />
       <Figure
         label={stillHave ? 'Te queda' : 'Te pasaste'}
         value={formatMoneyCompact(Math.abs(data.balance))}
@@ -57,12 +58,12 @@ interface FigureProps {
 function Figure({ label, value, className, comparison }: FigureProps) {
   return (
     <div className="flex flex-col gap-0.5">
-      <dt className="muted text-[0.7rem] font-semibold tracking-wide uppercase">{label}</dt>
+      <dt className="muted text-xs font-semibold tracking-wide uppercase">{label}</dt>
       <dd>
         <span className={`figure text-sm whitespace-nowrap sm:text-lg ${className}`}>{value}</span>
       </dd>
       {comparison && (
-        <dd className="muted text-[0.7rem] leading-tight whitespace-nowrap">
+        <dd className="muted text-xs leading-tight whitespace-nowrap">
           {/* Short on a phone (the arrow and the amount), with the month from sm up; the whole sentence goes to screen readers */}
           <span aria-hidden="true" title={comparison.sentence}>
             {comparison.short}

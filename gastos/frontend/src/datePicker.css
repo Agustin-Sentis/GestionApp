@@ -1,0 +1,102 @@
+/*
+ * The look of the calendar (react-day-picker), taken to the notebook of the app: square corners, ink lines,
+ * the highlighter for what the mouse is over and the pen for what is chosen. Colors are the theme's variables,
+ * so light and dark need nothing more.
+ *
+ * It is a plain stylesheet, outside Tailwind's layers on purpose: the library's own CSS is not in a layer either,
+ * and a rule in a layer always loses to one that is not. It is imported after the library's CSS (see DatePicker.tsx).
+ */
+.date-pop .rdp-root {
+  --rdp-accent-color: var(--pen);
+  --rdp-accent-background-color: var(--grid);
+  --rdp-day-height: 2.25rem;
+  --rdp-day-width: 2.25rem;
+  --rdp-day_button-height: 2.25rem;
+  --rdp-day_button-width: 2.25rem;
+  --rdp-day_button-border-radius: 2px;
+  --rdp-day_button-border: 2px solid transparent;
+  --rdp-selected-border: 2px solid var(--pen);
+  --rdp-nav_button-height: 2.25rem;
+  --rdp-nav_button-width: 2.25rem;
+  --rdp-nav-height: 2.5rem;
+  --rdp-outside-opacity: 0.45;
+  --rdp-disabled-opacity: 0.3;
+  --rdp-weekday-opacity: 1;
+  color: var(--ink);
+  font-size: 0.875rem;
+}
+
+/* A finger needs more room than a mouse: the cells grow on a touch screen */
+@media (pointer: coarse) {
+  .date-pop .rdp-root {
+    --rdp-day-height: 2.5rem;
+    --rdp-day-width: 2.5rem;
+    --rdp-day_button-height: 2.5rem;
+    --rdp-day_button-width: 2.5rem;
+    --rdp-nav_button-height: 2.75rem;
+    --rdp-nav_button-width: 2.75rem;
+    --rdp-nav-height: 2.75rem;
+  }
+}
+
+.date-pop .rdp-month_caption {
+  font-size: 0.875rem;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.date-pop .rdp-weekday {
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.date-pop .rdp-chevron {
+  fill: var(--ink);
+}
+
+.date-pop .rdp-button_previous,
+.date-pop .rdp-button_next,
+.date-pop .rdp-day_button {
+  color: var(--ink);
+  border-radius: 2px;
+}
+
+.date-pop .rdp-button_previous:hover:not(:disabled),
+.date-pop .rdp-button_next:hover:not(:disabled),
+.date-pop .rdp-day_button:hover:not(:disabled) {
+  background: var(--mark);
+  color: var(--on-mark);
+}
+
+.date-pop .rdp-button_previous:hover:not(:disabled) .rdp-chevron,
+.date-pop .rdp-button_next:hover:not(:disabled) .rdp-chevron {
+  fill: var(--on-mark);
+}
+
+.date-pop .rdp-button_previous:focus-visible,
+.date-pop .rdp-button_next:focus-visible,
+.date-pop .rdp-day_button:focus-visible {
+  outline: 3px solid var(--pen);
+  outline-offset: 1px;
+}
+
+/* Today: an ink frame. The chosen day (below, so it wins) is filled with the pen. */
+.date-pop .rdp-today:not(.rdp-outside) {
+  color: var(--ink);
+}
+
+.date-pop .rdp-today:not(.rdp-outside) .rdp-day_button {
+  border-color: var(--ink);
+}
+
+.date-pop .rdp-selected {
+  font-size: inherit;
+}
+
+.date-pop .rdp-selected.rdp-day .rdp-day_button {
+  background: var(--pen);
+  border-color: var(--pen);
+  color: var(--on-pen);
+}

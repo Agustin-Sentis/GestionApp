@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { addMonths, currentMonthValue, defaultDateForMonth, formatDate, formatMoney, formatMoneyCompact, formatMonth, monthName, parseMonthValue, todayLocal } from './format.ts'
+import { addMonths, currentMonthValue, defaultDateForMonth, formatDate, formatMoney, formatMoneyCompact, formatMonth, monthName, parseDateValue, parseMonthValue, todayLocal, toDateValue } from './format.ts'
 
 // Intl separates the symbol from the number with a non-breaking space: compare with a normal one
 const plain = (text: string) => text.replace(/ /g, ' ')
@@ -135,5 +135,32 @@ describe('dates', () => {
 
   it('formats an ISO date as day/month/year without going through Date (no time zone shift)', () => {
     expect(formatDate('2026-11-05')).toBe('05/11/2026')
+  })
+})
+
+describe('parseDateValue and toDateValue', () => {
+  it('turns yyyy-MM-dd into the local day, and back', () => {
+    const date = parseDateValue('2026-11-17')
+
+    expect(date).toEqual(new Date(2026, 10, 17))
+    expect(toDateValue(date as Date)).toBe('2026-11-17')
+  })
+
+  it('does not move the day (new Date("2026-11-17") would be UTC and show the 16th in Argentina)', () => {
+    expect(parseDateValue('2026-11-17')?.getDate()).toBe(17)
+    expect(parseDateValue('2000-01-01')?.getDate()).toBe(1)
+  })
+
+  it('is undefined for an empty text, a wrong format or a day that does not exist', () => {
+    expect(parseDateValue('')).toBeUndefined()
+    expect(parseDateValue('17/11/2026')).toBeUndefined()
+    expect(parseDateValue('2026-11')).toBeUndefined()
+    expect(parseDateValue('2026-02-31')).toBeUndefined()
+    expect(parseDateValue('2026-13-01')).toBeUndefined()
+  })
+
+  it('accepts the 29th of February only in a leap year', () => {
+    expect(parseDateValue('2028-02-29')).toBeDefined()
+    expect(parseDateValue('2026-02-29')).toBeUndefined()
   })
 })

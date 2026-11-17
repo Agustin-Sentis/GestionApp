@@ -15,6 +15,25 @@ function serverFor(reply: MockReply = { status: 204 }) {
 
 const bodiesOf = (fetchMock: ReturnType<typeof mockApi>) => fetchMock.mock.calls.map(([, init]) => JSON.parse(String(init?.body)))
 
+describe('AuthPage placeholders', () => {
+  it('puts an example on the email and tells apart signing in from signing up on the password', async () => {
+    renderWithProviders(<AuthPage />)
+
+    expect(screen.getByLabelText('Email')).toHaveAttribute('placeholder', 'tu@correo.com')
+    expect(screen.getByLabelText('Contraseña')).toHaveAttribute('placeholder', 'Tu contraseña')
+
+    await userEvent.click(screen.getByRole('button', { name: '¿No tenés cuenta? Registrate' }))
+    expect(screen.getByLabelText('Contraseña')).toHaveAttribute('placeholder', 'Creá una contraseña')
+  })
+
+  it('lets you see the password on the sign-in form', async () => {
+    renderWithProviders(<AuthPage />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Mostrar contraseña' }))
+    expect(screen.getByLabelText('Contraseña')).toHaveAttribute('type', 'text')
+  })
+})
+
 describe('AuthPage password recovery', () => {
   it('offers the recovery on the sign-in form, and nowhere else', async () => {
     renderWithProviders(<AuthPage />)

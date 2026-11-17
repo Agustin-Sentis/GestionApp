@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { api } from '../api.ts'
+import PasswordField from './PasswordField.tsx'
 import { useToast } from './toastContext.ts'
 
 interface Props {
@@ -80,16 +81,7 @@ export default function EmailConfirmationActions({ email: currentEmail, onResent
             onChange={(e) => setEmail(e.target.value)}
           />
         </label>
-        <label className="field">
-          Tu contraseña
-          <input
-            className="input"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </label>
+        <PasswordField label="Tu contraseña" value={password} onChange={setPassword} autoComplete="current-password" />
 
         {formError && <p className="error-text" role="alert">{formError}</p>}
 

@@ -1,5 +1,5 @@
 import type { MonthRange, RangePreset } from '../evolutionRange.ts'
-import { MAX_MONTH, MIN_MONTH } from '../format.ts'
+import MonthPicker from './MonthPicker.tsx'
 
 interface Props {
   /** Which shortcut is on, or 'custom' when the range was written by hand (then none is pressed). */
@@ -42,29 +42,9 @@ export default function RangePicker({ mode, from, to, onPreset, onCustom }: Prop
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <label className="field">
-          Desde
-          <input
-            type="month"
-            className="input"
-            value={from}
-            min={MIN_MONTH}
-            max={MAX_MONTH}
-            // A cleared field is not a range: it is ignored, and the field keeps showing the range in use
-            onChange={(e) => e.target.value && onCustom({ from: e.target.value, to })}
-          />
-        </label>
-        <label className="field">
-          Hasta
-          <input
-            type="month"
-            className="input"
-            value={to}
-            min={MIN_MONTH}
-            max={MAX_MONTH}
-            onChange={(e) => e.target.value && onCustom({ from, to: e.target.value })}
-          />
-        </label>
+        {/* A month cannot be cleared in this picker, so a range always has its two ends */}
+        <MonthPicker label="Desde" value={from} onChange={(next) => onCustom({ from: next, to })} />
+        <MonthPicker label="Hasta" value={to} onChange={(next) => onCustom({ from, to: next })} />
       </div>
     </div>
   )

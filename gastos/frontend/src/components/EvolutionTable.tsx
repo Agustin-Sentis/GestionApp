@@ -13,7 +13,7 @@ function Balance({ value }: { value: number }) {
   return (
     <>
       <span className={value < 0 ? 'text-expense' : undefined}>{formatMoney(value)}</span>
-      {value < 0 && <span className="muted ml-1 text-[0.7rem]">déficit</span>}
+      {value < 0 && <span className="muted ml-1 text-xs">déficit</span>}
     </>
   )
 }

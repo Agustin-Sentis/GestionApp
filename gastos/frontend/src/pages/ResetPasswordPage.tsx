@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { api, LINK_EXPIRED_MESSAGE } from '../api.ts'
 import { useAuth } from '../auth.tsx'
 import Brand, { APP_NAME } from '../components/Brand.tsx'
+import PasswordField from '../components/PasswordField.tsx'
 import PasswordRulesHint from '../components/PasswordRulesHint.tsx'
 import ThemeToggle from '../components/ThemeToggle.tsx'
 
@@ -83,30 +84,25 @@ export default function ResetPasswordPage() {
               </>
             ) : (
               <form className="flex flex-col gap-5" onSubmit={onSubmit}>
-                <label className="field">
-                  Contraseña nueva
-                  <input
-                    className="input"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoComplete="new-password"
-                    required
-                  />
+                <PasswordField
+                  label="Contraseña nueva"
+                  value={password}
+                  onChange={setPassword}
+                  autoComplete="new-password"
+                  placeholder="Creá una contraseña"
+                  required
+                >
                   <PasswordRulesHint />
-                </label>
+                </PasswordField>
 
-                <label className="field">
-                  Repetir la contraseña
-                  <input
-                    className="input"
-                    type="password"
-                    value={repeat}
-                    onChange={(e) => setRepeat(e.target.value)}
-                    autoComplete="new-password"
-                    required
-                  />
-                </label>
+                <PasswordField
+                  label="Repetir la contraseña"
+                  value={repeat}
+                  onChange={setRepeat}
+                  autoComplete="new-password"
+                  placeholder="Repetí la contraseña"
+                  required
+                />
 
                 {error && <p className="error-text" role="alert">{error}</p>}
 

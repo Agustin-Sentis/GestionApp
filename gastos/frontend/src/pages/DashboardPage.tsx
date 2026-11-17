@@ -12,6 +12,7 @@ import CategoryManager from '../components/CategoryManager.tsx'
 import DollarTypeToggle from '../components/DollarTypeToggle.tsx'
 import EmailStatusChip from '../components/EmailStatusChip.tsx'
 import EvolutionView from '../components/EvolutionView.tsx'
+import MonthPicker from '../components/MonthPicker.tsx'
 import MonthStats from '../components/MonthStats.tsx'
 import SettingsButton from '../components/SettingsButton.tsx'
 import SettingsModal from '../components/SettingsModal.tsx'
@@ -19,7 +20,7 @@ import type { SettingsSection } from '../components/SettingsModal.tsx'
 import MonthlyReportView from '../components/MonthlyReportView.tsx'
 import SummaryModeToggle from '../components/SummaryModeToggle.tsx'
 import type { SummaryMode } from '../components/SummaryModeToggle.tsx'
-import TransactionForm from '../components/TransactionForm.tsx'
+import TransactionForm, { AMOUNT_FIELD_ID } from '../components/TransactionForm.tsx'
 import TransactionList from '../components/TransactionList.tsx'
 
 /** The address parameter that says which view the summary has, and its value for the evolution (the month is the default). */
@@ -87,6 +88,13 @@ export default function DashboardPage() {
     )
   }
 
+  // From the empty notes: a new movement, with the cursor already in the amount (on a narrow screen, in its tab)
+  function startAdding() {
+    setEditing(null)
+    setView('anotar')
+    requestAnimationFrame(() => document.getElementById(AMOUNT_FIELD_ID)?.focus())
+  }
+
   function startEditing(transaction: Transaction) {
     setEditing(transaction)
     // On a narrow screen the form is another tab: take the user to it
@@ -128,13 +136,13 @@ export default function DashboardPage() {
             >
               ‹
             </button>
-            <input
+            <MonthPicker
               // Wide enough for the longest month ("septiembre de 2026") and the calendar icon
-              className="input w-48 min-w-0 shrink"
-              type="month"
+              className="w-48 shrink"
+              label="Mes a visualizar"
+              hideLabel
               value={filters.month}
-              onChange={(e) => e.target.value && setMonth(e.target.value)}
-              aria-label="Mes a visualizar"
+              onChange={setMonth}
             />
             <button
               type="button"
@@ -152,11 +160,11 @@ export default function DashboardPage() {
             <MonthStats year={year} month={month} />
           </div>
 
-          <div className="order-3 lg:order-4">
+          <div className="order-3 lg:order-4 lg:ml-auto">
             <DollarTypeToggle />
           </div>
 
-          <div className="order-2 ml-auto flex min-w-0 items-center justify-end gap-2 sm:gap-3 lg:order-5">
+          <div className="order-2 ml-auto flex min-w-0 items-center justify-end gap-2 sm:gap-3 lg:order-5 lg:ml-0">
             {/* Only while the address is not confirmed; it does not take up room otherwise */}
             <EmailStatusChip />
             <SettingsButton onClick={() => openSettings('security')} />
@@ -172,7 +180,7 @@ export default function DashboardPage() {
               <EvolutionView selectedMonth={filters.month} />
             ) : (
               <>
-                <MonthlyReportView year={year} month={month} />
+                <MonthlyReportView year={year} month={month} onAddMovement={startAdding} />
                 <BudgetPanel year={year} month={month} onOpenSettings={openSettings} />
               </>
             )}
@@ -181,6 +189,7 @@ export default function DashboardPage() {
           <Panel id="libro" current={view}>
             <TransactionList
               onEdit={startEditing}
+              onAddMovement={startAdding}
               editingId={editing?.id ?? null}
               // The row being edited is gone: go back to creating
               onDeleted={(id) => setEditing((current) => (current?.id === id ? null : current))}

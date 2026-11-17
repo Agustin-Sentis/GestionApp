@@ -5,6 +5,7 @@ import { api } from '../api.ts'
 import { buildEvolutionView } from '../evolutionData.ts'
 import { FROM_PARAM, PRESET_PARAM, resolveRange, TO_PARAM } from '../evolutionRange.ts'
 import type { MonthRange, RangePreset } from '../evolutionRange.ts'
+import EmptyNote from './EmptyNote.tsx'
 import EvolutionTable from './EvolutionTable.tsx'
 import PendingConversionNotes from './PendingConversionNotes.tsx'
 import RangePicker from './RangePicker.tsx'
@@ -95,7 +96,7 @@ export default function EvolutionView({ selectedMonth }: { selectedMonth: string
           <PendingConversionNotes pending={data.pendingConversions} />
 
           {view.shape === 'empty' ? (
-            <p className="muted">{view.message}</p>
+            <EmptyNote>{view.message}</EmptyNote>
           ) : (
             <>
               {view.note && <p className="muted text-sm">{view.note}</p>}

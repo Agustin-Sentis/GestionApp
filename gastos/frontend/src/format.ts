@@ -82,3 +82,21 @@ export function formatDate(iso: string): string {
   const [y, m, d] = iso.split('-')
   return `${d}/${m}/${y}`
 }
+
+/**
+ * yyyy-MM-dd → a Date at local midnight, or undefined when it is empty or not a real day ("2026-02-31").
+ * Built from its parts, because `new Date("2026-11-17")` is UTC midnight and shows the day before in Argentina.
+ */
+export function parseDateValue(value: string): Date | undefined {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return undefined
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])]
+  const date = new Date(year, month - 1, day)
+  const isRealDay = date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+  return isRealDay ? date : undefined
+}
+
+/** A Date → yyyy-MM-dd with its local day (the opposite of parseDateValue). */
+export function toDateValue(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}

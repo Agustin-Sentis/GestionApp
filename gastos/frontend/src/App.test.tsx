@@ -5,6 +5,7 @@ import { saveSession } from './api.ts'
 import App from './App.tsx'
 import { mockApi } from './test/fetchMock.ts'
 import { food, pageOf } from './test/fixtures.ts'
+import { dateButton } from './test/datePicker.ts'
 import { renderWithProviders } from './test/render.tsx'
 
 // The chart library draws nothing useful in jsdom (it has no size)
@@ -43,7 +44,7 @@ describe('App routes', () => {
     renderWithProviders(<App />, { route: '/?mes=2026-11' })
 
     expect(await screen.findByRole('button', { name: 'Salir' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Mes a visualizar')).toHaveValue('2026-11') // an old link with ?mes= still works
+    expect(dateButton('Mes a visualizar')).toHaveTextContent('noviembre de 2026') // an old link with ?mes= still works
     expect(screen.queryByText('Anotá lo que gastás.')).not.toBeInTheDocument()
   })
 
@@ -54,7 +55,7 @@ describe('App routes', () => {
     renderWithProviders(<App />, { route: '/panel?mes=2026-11' })
 
     expect(await screen.findByRole('button', { name: 'Salir' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Mes a visualizar')).toHaveValue('2026-11')
+    expect(dateButton('Mes a visualizar')).toHaveTextContent('noviembre de 2026')
   })
 
   it('sends someone who has not signed in from /panel to the sign-in form', () => {
@@ -89,7 +90,7 @@ describe('App routes', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Ingresar' }))
 
     expect(await screen.findByRole('button', { name: 'Salir' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Mes a visualizar')).toHaveValue('2026-09')
+    expect(dateButton('Mes a visualizar')).toHaveTextContent('septiembre de 2026')
   })
 
   it('leaves the dashboard for the landing page, not for the sign-in form, when someone chooses to sign out', async () => {

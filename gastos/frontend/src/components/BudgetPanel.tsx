@@ -5,13 +5,15 @@ import { api, EXPENSE } from '../api.ts'
 import type { BudgetProgress, BudgetStatus, Category } from '../api.ts'
 import { categoryOrder, colorOf } from '../chartData.ts'
 import { currentMonthValue, formatMoneyCompact, formatPercent, parseMonthValue } from '../format.ts'
+import EmptyNote from './EmptyNote.tsx'
 import type { SettingsSection } from './SettingsModal.tsx'
 import { Skeleton, SkeletonGroup } from './Skeleton.tsx'
 import { useToast } from './toastContext.ts'
 
 /** The bar's fill by state. The state is also written in words next to it: the color is never the only signal. */
+// The stroke of the highlighter: the blue a little see-through (the pen pressed lightly), the yellow and the red at full strength
 const FILL: Record<BudgetStatus, string> = {
-  Ok: 'bg-pen',
+  Ok: 'bg-pen/70',
   Warning: 'bg-mark',
   Exceeded: 'bg-expense',
 }
@@ -111,11 +113,11 @@ export default function BudgetPanel({
       )}
 
       {report.budgets.length === 0 ? (
-        <p className="muted">
+        <EmptyNote>
           {expenseCategories.length === 0
             ? 'Creá una categoría de gasto para ponerle un presupuesto mensual.'
             : 'Todavía no definiste ningún presupuesto. Elegí una categoría y cuánto querés gastar por mes.'}
-        </p>
+        </EmptyNote>
       ) : (
         <ul className="flex flex-col gap-4">
           {report.budgets.map((item, index) => (
@@ -201,9 +203,11 @@ function BudgetRow({ item, color, editing, amount, onAmountChange, pending, onEd
         aria-valuemax={100}
         aria-valuenow={Math.min(100, Math.round(item.usedPercent))}
         aria-valuetext={`${spent} de ${limit}`}
-        className="h-3 overflow-hidden border-2 border-ink bg-paper"
+        // A ruled line with a small tick at the end of the budget; the stroke sits on it. With nothing spent only the line is left
+        className="relative h-4 border-b-2 border-ink"
       >
-        <div className={`h-full ${FILL[item.status]}`} style={{ width: `${Math.min(100, item.usedPercent)}%` }} />
+        <div className={`absolute bottom-0 left-0 h-3 rounded-xs ${FILL[item.status]}`} style={{ width: `${Math.min(100, item.usedPercent)}%` }} />
+        <span aria-hidden="true" className="absolute right-0 bottom-0 h-3 w-0.5 bg-ink" />
       </div>
 
       <p className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">

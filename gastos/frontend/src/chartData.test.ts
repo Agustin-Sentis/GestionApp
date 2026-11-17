@@ -116,13 +116,13 @@ describe('chart "gastos"', () => {
 
   it('says so when there are no expenses but there is income', () => {
     expect(buildChartView('gastos', report([income('Sueldo', 5)]), ORDER)).toEqual({
-      shape: 'empty', message: 'No hay gastos cargados en este mes.',
+      shape: 'empty', message: 'Todavía no agregaste gastos este mes.',
     })
   })
 
   it('says there is nothing yet when the month is empty', () => {
     expect(buildChartView('gastos', report([]), ORDER)).toEqual({
-      shape: 'empty', message: 'Todavía no hay movimientos cargados en este mes.',
+      shape: 'empty', message: 'Todavía no agregaste movimientos este mes.',
     })
   })
 
@@ -143,7 +143,7 @@ describe('chart "ingresos"', () => {
 
   it('says so when there is no income', () => {
     expect(buildChartView('ingresos', report([expense('Comida', 5)]), ORDER)).toEqual({
-      shape: 'empty', message: 'No hay ingresos cargados en este mes.',
+      shape: 'empty', message: 'Todavía no agregaste ingresos este mes.',
     })
   })
 })
@@ -195,14 +195,16 @@ describe('chart "destino" (where the income went)', () => {
     const view = buildChartView('destino', report([expense('Comida', 100)]), ORDER)
 
     expect(view).toMatchObject({ shape: 'empty' })
-    expect(view.shape === 'empty' && view.message).toContain('cargá uno')
+    expect(view.shape === 'empty' && view.message).toContain('agregá uno')
   })
 
-  it('shows all of the income as unspent when there are no expenses', () => {
-    const view = drawn(buildChartView('destino', report([income('Sueldo', 100)]), ORDER))
+  it('draws nothing when there are no expenses: a ring that is all "Sin gastar" says nothing', () => {
+    const view = buildChartView('destino', report([income('Sueldo', 100)]), ORDER)
 
-    expect(view.slices).toHaveLength(1)
-    expect(view.slices[0]).toMatchObject({ name: 'Sin gastar', percent: 100 })
+    expect(view).toEqual({
+      shape: 'empty',
+      message: 'Todavía no agregaste gastos este mes: todo lo que ingresó sigue disponible.',
+    })
   })
 })
 
@@ -312,5 +314,29 @@ describe('chart "comparacion"', () => {
 
   it('is empty when there is neither income nor expenses', () => {
     expect(buildChartView('comparacion', report([]), ORDER)).toMatchObject({ shape: 'empty' })
+  })
+})
+
+describe('what is written in the hole of the donut', () => {
+  it('says how much of the income was spent in the chart of where the income went', () => {
+    const view = drawn(buildChartView('destino', report([income('Sueldo', 100), expense('Comida', 40)]), ORDER))
+
+    expect(view.center).toEqual({ value: '40%', label: 'gastado' })
+  })
+
+  it('says the total of the expenses, and of the income, in their charts', () => {
+    const data = report([income('Sueldo', 900000), expense('Comida', 25000), expense('Alquiler', 40000)])
+
+    expect(drawn(buildChartView('gastos', data, ORDER)).center?.label).toBe('en gastos')
+    expect(drawn(buildChartView('gastos', data, ORDER)).center?.value).toMatch(/65\.000$/)
+    expect(drawn(buildChartView('ingresos', data, ORDER)).center).toMatchObject({ label: 'en ingresos' })
+    expect(drawn(buildChartView('ingresos', data, ORDER)).center?.value).toMatch(/900\.000$/)
+  })
+
+  it('has no center in the charts of bars', () => {
+    const data = report([income('Sueldo', 100), expense('Comida', 40)])
+
+    expect(drawn(buildChartView('ranking', data, ORDER)).center).toBeUndefined()
+    expect(drawn(buildChartView('comparacion', data, ORDER)).center).toBeUndefined()
   })
 })

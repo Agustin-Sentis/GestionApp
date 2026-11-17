@@ -5,8 +5,13 @@ import { api, EXPENSE, INCOME } from '../api.ts'
 import type { Currency, Transaction, TransactionInput } from '../api.ts'
 import { DOLLAR_NAMES } from '../dollar.ts'
 import { defaultDateForMonth, formatMonth } from '../format.ts'
+import { JUST_ADDED_KEY } from '../justAdded.ts'
 import { useListFilters } from '../useListFilters.ts'
+import DatePicker from './DatePicker.tsx'
 import { useToast } from './toastContext.ts'
+
+/** The id of the amount field: other parts of the page (the empty notes) take the person straight to it. */
+export const AMOUNT_FIELD_ID = 'movement-amount'
 
 interface Props {
   /** The transaction being edited. Without it the form creates a new one. */
@@ -58,12 +63,16 @@ export default function TransactionForm({ editing = null, onFinishEditing }: Pro
   }, [filters.month, editing])
 
   const save = useMutation({
-    // Update answers with nothing and create with the new transaction; neither answer is used here
+    // Update answers with nothing; create answers with the new transaction, whose id says which row to highlight
     mutationFn: async (input: TransactionInput) => {
-      if (editing) await api.transactions.update(editing.id, input)
-      else await api.transactions.create(input)
+      if (editing) {
+        await api.transactions.update(editing.id, input)
+        return null
+      }
+      return (await api.transactions.create(input)).id
     },
-    onSuccess: (_result, input) => {
+    onSuccess: (createdId, input) => {
+      if (createdId) queryClient.setQueryData(JUST_ADDED_KEY, createdId)
       void queryClient.invalidateQueries({ queryKey: ['transactions'] })
       void queryClient.invalidateQueries({ queryKey: ['report'] })
 
@@ -119,6 +128,7 @@ export default function TransactionForm({ editing = null, onFinishEditing }: Pro
           Monto
           <input
             ref={amountRef}
+            id={AMOUNT_FIELD_ID}
             className="input"
             type="number"
             inputMode="decimal"
@@ -155,19 +165,14 @@ export default function TransactionForm({ editing = null, onFinishEditing }: Pro
         </select>
       </label>
 
-      <label className="field">
-        Fecha
-        <input
-          className="input"
-          type="date"
-          value={date}
-          onChange={(e) => {
-            dateTouched.current = true
-            setDate(e.target.value)
-          }}
-          required
-        />
-      </label>
+      <DatePicker
+        label="Fecha"
+        value={date}
+        onChange={(next) => {
+          dateTouched.current = true
+          setDate(next)
+        }}
+      />
 
       <label className="field">
         Nota (opcional)

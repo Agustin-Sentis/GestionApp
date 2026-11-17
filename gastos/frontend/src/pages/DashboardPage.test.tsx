@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { saveSession } from '../api.ts'
 import { mockApi } from '../test/fetchMock.ts'
 import { food, pageOf, salary, settings, transaction } from '../test/fixtures.ts'
+import { dateButton } from '../test/datePicker.ts'
 import { renderWithProviders } from '../test/render.tsx'
 import DashboardPage from './DashboardPage.tsx'
 
@@ -39,12 +40,45 @@ function setup(route = '/?mes=2026-11', extraRoutes: Parameters<typeof mockApi>[
   return fetchMock
 }
 
+describe('DashboardPage empty month', () => {
+  const emptyMonth = { ...report, income: 0, expense: 0, balance: 0 }
+
+  it('offers to add a movement from the summary, and leaves the cursor in the amount', async () => {
+    setup('/?mes=2026-11', {
+      'GET /api/report/monthly': () => ({ body: emptyMonth }),
+      'GET /api/transaction/paged': () => ({ body: pageOf([]) }),
+    })
+    const user = userEvent.setup()
+
+    const summary = await screen.findByRole('tabpanel', { name: 'Resumen', hidden: true })
+    await user.click(await within(summary).findByRole('button', { name: 'Agregar un movimiento' }))
+
+    await waitFor(() => expect(screen.getByLabelText('Monto')).toHaveFocus())
+    // On a narrow screen the form is another tab: the person is taken to it
+    expect(screen.getByRole('tab', { name: 'Anotar' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('offers it from the book of movements too, and starts a new one even if another was being edited', async () => {
+    setup('/?mes=2026-11', {
+      'GET /api/report/monthly': () => ({ body: emptyMonth }),
+      'GET /api/transaction/paged': () => ({ body: pageOf([]) }),
+    })
+    const user = userEvent.setup()
+
+    const book = await screen.findByRole('tabpanel', { name: 'Libro', hidden: true })
+    await user.click(await within(book).findByRole('button', { name: 'Agregar un movimiento' }))
+
+    await waitFor(() => expect(screen.getByLabelText('Monto')).toHaveFocus())
+    expect(screen.getByRole('heading', { name: 'Nuevo movimiento' })).toBeInTheDocument()
+  })
+})
+
 describe('DashboardPage', () => {
   it('follows the month of the URL in the picker, the summary and the list', async () => {
     const fetchMock = setup('/?mes=2026-03')
 
     await screen.findByText('almuerzo')
-    expect(screen.getByLabelText('Mes a visualizar')).toHaveValue('2026-03')
+    expect(dateButton('Mes a visualizar')).toHaveTextContent('marzo de 2026')
     const urls = fetchMock.mock.calls.map(([url]) => new URL(String(url)))
     expect(urls.find((u) => u.pathname === '/api/report/monthly')?.search).toBe('?year=2026&month=3')
     expect(urls.find((u) => u.pathname === '/api/transaction/paged')?.searchParams.get('month')).toBe('3')
@@ -56,7 +90,7 @@ describe('DashboardPage', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Mes siguiente' }))
 
-    await waitFor(() => expect(screen.getByLabelText('Mes a visualizar')).toHaveValue('2027-01')) // across the year
+    await waitFor(() => expect(dateButton('Mes a visualizar')).toHaveTextContent('enero de 2027')) // across the year
     await waitFor(() => {
       const paged = fetchMock.mock.calls.map(([url]) => new URL(String(url))).filter((u) => u.pathname === '/api/transaction/paged')
       expect(paged.at(-1)?.searchParams.get('year')).toBe('2027')
@@ -66,7 +100,7 @@ describe('DashboardPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Mes anterior' }))
     await userEvent.click(screen.getByRole('button', { name: 'Mes anterior' }))
 
-    await waitFor(() => expect(screen.getByLabelText('Mes a visualizar')).toHaveValue('2026-11'))
+    await waitFor(() => expect(dateButton('Mes a visualizar')).toHaveTextContent('noviembre de 2026'))
   })
 
   it('goes back to the first page when the month changes', async () => {
@@ -163,12 +197,12 @@ describe('DashboardPage', () => {
 
       await userEvent.click(screen.getByRole('button', { name: 'Evolución' }))
       expect(await screen.findByRole('heading', { name: 'Evolución' })).toBeInTheDocument()
-      expect(screen.getByLabelText('Mes a visualizar')).toHaveValue('2026-03')
+      expect(dateButton('Mes a visualizar')).toHaveTextContent('marzo de 2026')
 
       await userEvent.click(screen.getByRole('button', { name: 'Este mes' }))
       expect(await screen.findByRole('heading', { name: 'Resumen del mes' })).toBeInTheDocument()
       expect(screen.getByRole('heading', { name: 'Presupuestos' })).toBeInTheDocument()
-      expect(screen.getByLabelText('Mes a visualizar')).toHaveValue('2026-03')
+      expect(dateButton('Mes a visualizar')).toHaveTextContent('marzo de 2026')
     })
 
     it('ends the shortcuts at the month on screen, and follows it when it changes', async () => {
@@ -351,7 +385,7 @@ describe('DashboardPage', () => {
     }
     // The header wraps its controls, and the month field can shrink
     expect(screen.getByRole('banner').className).toContain('flex-wrap')
-    expect(screen.getByLabelText('Mes a visualizar').className).toContain('min-w-0')
+    expect(dateButton('Mes a visualizar').className).toContain('min-w-0')
   })
 
   it('switches the form to another transaction when a different row is edited', async () => {

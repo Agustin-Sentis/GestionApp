@@ -191,3 +191,25 @@ async function waitForTheAnswer(fetchMock: ReturnType<typeof mockApi>) {
   await new Promise((resolve) => setTimeout(resolve, 50))
   expect(fetchMock).toHaveBeenCalled()
 }
+
+describe('MonthStats a figure at zero', () => {
+  const colorOf = (label: string) => screen.getByText(label).closest('div')?.querySelector('dd span')?.className ?? ''
+
+  it('keeps the red of the expenses and the blue of the income when there is something', async () => {
+    setup(() => ({ body: reportOf() }))
+    await screen.findByText('Ingresos')
+
+    expect(colorOf('Ingresos')).toContain('text-income')
+    expect(colorOf('Gastos')).toContain('text-expense')
+  })
+
+  it('writes a zero in plain ink: the red is for what was spent, not an alarm for having spent nothing', async () => {
+    setup(() => ({ body: reportOf({ income: 0, expense: 0, balance: 0 }) }))
+    await screen.findByText('Ingresos')
+
+    expect(colorOf('Ingresos')).toContain('text-ink-soft')
+    expect(colorOf('Ingresos')).not.toContain('text-income')
+    expect(colorOf('Gastos')).toContain('text-ink-soft')
+    expect(colorOf('Gastos')).not.toContain('text-expense')
+  })
+})

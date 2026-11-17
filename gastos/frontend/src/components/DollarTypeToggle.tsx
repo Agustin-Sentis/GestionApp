@@ -35,7 +35,7 @@ export default function DollarTypeToggle() {
 
   return (
     <div className="inline-flex items-center gap-2">
-      <span aria-hidden="true" className="muted text-[0.7rem] font-semibold tracking-wide uppercase">Dólar</span>
+      <span aria-hidden="true" className="muted text-xs font-semibold tracking-wide uppercase">Dólar</span>
 
       {/* No overflow clipping here: the note hangs below the control and must not be cut off */}
       <fieldset className="relative inline-flex divide-x-2 divide-ink rounded-sm border-2 border-ink">
@@ -64,7 +64,7 @@ export default function DollarTypeToggle() {
                 role="tooltip"
                 className="pointer-events-none invisible absolute top-full right-0 z-30 mt-2 w-max max-w-52 rounded-sm border-2 border-ink bg-sheet px-2.5 py-1.5 text-left text-xs leading-snug font-medium text-ink opacity-0 transition-opacity delay-100 group-hover:visible group-hover:opacity-100 group-has-focus-visible:visible group-has-focus-visible:opacity-100 motion-reduce:transition-none"
               >
-                <strong className="display block text-[0.7rem] uppercase" style={{ letterSpacing: '0.05em' }}>
+                <strong className="display block text-xs uppercase" style={{ letterSpacing: '0.05em' }}>
                   {DOLLAR_LABELS[value]}
                 </strong>
                 {DOLLAR_HINTS[value]} {DOLLAR_SCOPE}

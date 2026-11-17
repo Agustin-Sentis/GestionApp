@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { saveSession } from '../api.ts'
@@ -7,6 +7,7 @@ import { formatMoney } from '../format.ts'
 import { anyBlob } from '../test/blob.ts'
 import { mockApi } from '../test/fetchMock.ts'
 import { food, pageOf, salary, transaction } from '../test/fixtures.ts'
+import { pickDate } from '../test/datePicker.ts'
 import { renderWithProviders } from '../test/render.tsx'
 import TransactionList from './TransactionList.tsx'
 
@@ -56,7 +57,7 @@ describe('TransactionList rows', () => {
     expect(screen.getByText('almuerzo')).toBeInTheDocument()
     expect(screen.getByText(/^−\s?\$/)).toBeInTheDocument() // expense: minus
     expect(screen.getByText(/^\+\s?\$/)).toBeInTheDocument() // income: plus
-    expect(screen.getByText('—')).toBeInTheDocument() // no note
+    expect(screen.queryByText('—')).not.toBeInTheDocument() // no note: nothing is written in its place
   })
 
   it('shows the saved rate and the peso amount of a USD transaction', async () => {
@@ -118,7 +119,7 @@ describe('TransactionList asks for what the URL says', () => {
   it('asks for the month of the URL, page 1 and a page size of 20', async () => {
     const { pagedRequests } = setup('/?mes=2026-03', () => ({ body: pageOf([]) }))
 
-    await screen.findByText('No hay movimientos en este mes.')
+    await screen.findByText('Todavía no agregaste movimientos este mes.')
     expect(pagedRequests()[0]).toEqual({ year: '2026', month: '3', page: '1', pageSize: '20' })
   })
 
@@ -177,43 +178,49 @@ describe('TransactionList filters', () => {
     await screen.findByRole('option', { name: 'Comida' })
 
     await userEvent.click(screen.getByLabelText('Rango de fechas'))
-    fireEvent.change(await screen.findByLabelText('Desde'), { target: { value: '2026-03-05' } })
-    fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-03-20' } })
+    const user = userEvent.setup()
+    await pickDate(user, 'Desde', '2026-03-05')
+    await pickDate(user, 'Hasta', '2026-03-20')
 
     await waitFor(() => expect(pagedRequests().at(-1)).toMatchObject({ from: '2026-03-05', to: '2026-03-20' }))
     expect(pagedRequests().at(-1)).not.toHaveProperty('year')
   })
 
-  it('puts the range options in order: the tick on its own row, "Desde" and "Hasta" under it, and the two actions last', async () => {
+  it('orders the filters: the search first, the category and type, one row with the range and the actions, and "Desde" and "Hasta" under it', async () => {
     setup('/?mes=2026-03&rango=1&desde=2026-03-01&hasta=2026-03-15', () => ({ body: pageOf([transaction()]) }))
     await screen.findByText('almuerzo')
 
-    const tick = screen.getByLabelText('Rango de fechas').closest('label')!
-    expect(tick.className).toContain('col-span-2')
+    const filters = screen.getByLabelText('Rango de fechas').closest('label')!.parentElement!.parentElement!
+    const order = Array.from(filters.children).map((child) => child.textContent?.trim() ?? '')
+    const at = (start: string) => order.findIndex((text) => text.startsWith(start))
 
-    // Order in the page: tick, Desde, Hasta, then the row with the actions
-    const filters = tick.parentElement!
-    const order = Array.from(filters.children).map((child) => child.textContent?.trim())
-    expect(order.indexOf('Rango de fechas')).toBeLessThan(order.findIndex((text) => text?.startsWith('Desde')))
-    expect(order.findIndex((text) => text?.startsWith('Desde'))).toBeLessThan(order.findIndex((text) => text?.startsWith('Hasta')))
-    expect(order.findIndex((text) => text?.startsWith('Hasta'))).toBeLessThan(order.findIndex((text) => text?.includes('Exportar CSV')))
+    expect(at('Buscar')).toBeLessThan(at('Categoría'))
+    expect(at('Categoría')).toBeLessThan(at('Tipo'))
+    expect(at('Tipo')).toBeLessThan(at('Rango de fechas'))
+    expect(at('Rango de fechas')).toBeLessThan(at('Desde'))
+    expect(at('Desde')).toBeLessThan(at('Hasta'))
+  })
 
-    // Clearing and exporting share one row, in that order
-    const actions = screen.getByRole('button', { name: 'Exportar CSV' }).parentElement!
-    expect(actions.className).toContain('col-span-2')
-    expect(Array.from(actions.querySelectorAll('button')).map((button) => button.textContent)).toEqual([
+  it('puts the tick and the actions in one row: the range on the left, clearing and exporting on the right', async () => {
+    setup('/?mes=2026-03&rango=1&desde=2026-03-01&hasta=2026-03-15', () => ({ body: pageOf([transaction()]) }))
+    await screen.findByText('almuerzo')
+
+    const row = screen.getByLabelText('Rango de fechas').closest('label')!.parentElement!
+    expect(row.className).toContain('col-span-2')
+    expect(row.className).toContain('justify-between')
+    expect(Array.from(row.querySelectorAll('button')).map((button) => button.textContent)).toEqual([
       'Limpiar filtros',
       'Exportar CSV',
     ])
   })
 
-  it('keeps the export button on the right when there is nothing to clear', async () => {
+  it('has only the export button on the right when there is nothing to clear', async () => {
     setup('/', () => ({ body: pageOf([transaction()]) }))
     await screen.findByText('almuerzo')
 
     const actions = screen.getByRole('button', { name: 'Exportar CSV' }).parentElement!
     expect(actions.querySelectorAll('button')).toHaveLength(1)
-    expect(actions.className).toContain('justify-between')
+    expect(screen.queryByRole('button', { name: 'Limpiar filtros' })).not.toBeInTheDocument()
   })
 
   it('warns that the summary above still shows the month while a range is used', async () => {
@@ -350,7 +357,7 @@ describe('TransactionList CSV export', () => {
   it('cannot be pressed when there is nothing to export', async () => {
     setup('/', () => ({ body: pageOf([]) }))
 
-    await screen.findByText('No hay movimientos en este mes.')
+    await screen.findByText('Todavía no agregaste movimientos este mes.')
     expect(screen.getByRole('button', { name: 'Exportar CSV' })).toBeDisabled()
   })
 
@@ -418,7 +425,7 @@ describe('TransactionList empty states', () => {
   it('says the month has no transactions when no filter is on', async () => {
     setup('/', () => ({ body: pageOf([]) }))
 
-    expect(await screen.findByText('No hay movimientos en este mes.')).toBeInTheDocument()
+    expect(await screen.findByText('Todavía no agregaste movimientos este mes.')).toBeInTheDocument()
   })
 
   it('says the filters match nothing, and lets the user clear them', async () => {
@@ -520,5 +527,52 @@ describe('TransactionList after deleting', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Sí' }))
 
     await waitFor(() => expect(pagedRequests().at(-1)).toMatchObject({ page: '1' }))
+  })
+})
+
+describe('TransactionList as a page of the ledger', () => {
+  const days = [
+    transaction({ id: 'a', date: '2026-11-17', note: 'café' }),
+    transaction({ id: 'b', date: '2026-11-17', note: 'almuerzo' }),
+    transaction({ id: 'c', date: '2026-11-05', note: 'cena' }),
+  ]
+
+  it('writes each day once in the margin, spanning the movements of that day', async () => {
+    setup('/?mes=2026-11', () => ({ body: pageOf(days) }))
+    await screen.findByText('café')
+
+    const times = document.querySelectorAll('tbody time')
+    expect(Array.from(times).map((time) => time.getAttribute('datetime'))).toEqual(['2026-11-17', '2026-11-05'])
+    expect(times[0].closest('td')).toHaveAttribute('rowspan', '2')
+    expect(times[1].closest('td')).toHaveAttribute('rowspan', '1')
+  })
+
+  it('shows the day big and the month short, and keeps the whole date for a screen reader', async () => {
+    setup('/?mes=2026-11', () => ({ body: pageOf(days) }))
+    await screen.findByText('café')
+
+    const margin = document.querySelectorAll('tbody time')[1]
+    expect(margin).toHaveTextContent('05/11/2026') // for the screen reader (and what the old column said)
+    expect(margin.querySelector('[aria-hidden="true"]')).toHaveTextContent('5')
+    expect(margin).toHaveAttribute('title', '05/11/2026')
+  })
+
+  it('draws the margin line in red, and a stronger rule where a day starts', async () => {
+    setup('/?mes=2026-11', () => ({ body: pageOf(days) }))
+    await screen.findByText('café')
+
+    expect(document.querySelector('tbody time')!.closest('td')!.className).toContain('border-margin')
+    const rows = Array.from(document.querySelectorAll('tbody tr'))
+    expect(rows[0].className).toContain('border-t-2') // first of the 17th
+    expect(rows[1].className).not.toContain('border-t-2') // second of the 17th
+    expect(rows[2].className).toContain('border-t-2') // first of the 5th
+  })
+
+  it('keeps the other columns of a movement that does not start the day', async () => {
+    setup('/?mes=2026-11', () => ({ body: pageOf(days) }))
+    await screen.findByText('almuerzo')
+
+    const second = screen.getByText('almuerzo').closest('tr')!
+    expect(second.querySelectorAll('td')).toHaveLength(3) // no margin cell: the one above spans down to here
   })
 })

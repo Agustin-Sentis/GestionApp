@@ -5,6 +5,7 @@ import { api } from '../api.ts'
 import { buildChartView, categoryOrder, CHART_KINDS, defaultChartKind, isChartKind } from '../chartData.ts'
 import type { ChartKind } from '../chartData.ts'
 import BreakdownTable from './BreakdownTable.tsx'
+import EmptyNote from './EmptyNote.tsx'
 import PendingConversionNotes from './PendingConversionNotes.tsx'
 import { Skeleton, SkeletonGroup } from './Skeleton.tsx'
 
@@ -14,7 +15,14 @@ const ReportChart = lazy(() => import('./ReportChart.tsx'))
 /** The URL parameter that remembers which chart is open, so a reload or a shared link shows the same one. */
 const CHART_PARAM = 'grafico'
 
-export default function MonthlyReportView({ year, month }: { year: number; month: number }) {
+interface Props {
+  year: number
+  month: number
+  /** Takes the person to the form that adds a movement, to offer it when there is nothing to draw yet. */
+  onAddMovement?: () => void
+}
+
+export default function MonthlyReportView({ year, month, onAddMovement }: Props) {
   const [params, setParams] = useSearchParams()
 
   const { data, isLoading, error } = useQuery({
@@ -78,7 +86,9 @@ export default function MonthlyReportView({ year, month }: { year: number; month
       </label>
 
       {view.shape === 'empty' ? (
-        <p className="muted">{view.message}</p>
+        <EmptyNote actionLabel="Agregar un movimiento" onAction={onAddMovement}>
+          {view.message}
+        </EmptyNote>
       ) : (
         <>
           {view.note && <p className="muted text-sm">{view.note}</p>}

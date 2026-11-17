@@ -110,7 +110,7 @@ export default function ThemeToggle({ showLabels = false }: { showLabels?: boole
                 role="tooltip"
                 className="pointer-events-none invisible absolute top-full right-0 z-30 mt-2 w-max max-w-44 rounded-sm border-2 border-ink bg-sheet px-2.5 py-1.5 text-left text-xs leading-snug font-medium text-ink opacity-0 transition-opacity delay-100 group-hover:visible group-hover:opacity-100 group-has-focus-visible:visible group-has-focus-visible:opacity-100 motion-reduce:transition-none sm:right-auto sm:left-1/2 sm:-translate-x-1/2"
               >
-                <strong className="display block text-[0.7rem] uppercase" style={{ letterSpacing: '0.05em' }}>
+                <strong className="display block text-xs uppercase" style={{ letterSpacing: '0.05em' }}>
                   {HINTS[value].title}
                 </strong>
                 {HINTS[value].text}
