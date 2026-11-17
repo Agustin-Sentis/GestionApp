@@ -1,6 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { dateButton, pickMonth } from '../test/datePicker.ts'
 import RangePicker from './RangePicker.tsx'
 
 function setup(mode: 'custom' | '3' | '6' | '12' | 'anio' = '6') {
@@ -41,32 +42,21 @@ describe('RangePicker', () => {
     expect(onPreset).toHaveBeenCalledWith(preset)
   })
 
-  it('shows the range in use in two month fields, within the years the app accepts', () => {
+  it('shows the range in use in two month fields', () => {
     setup()
 
-    const from = screen.getByLabelText('Desde')
-    const to = screen.getByLabelText('Hasta')
-    expect(from).toHaveValue('2026-06')
-    expect(to).toHaveValue('2026-11')
-    expect(from).toHaveAttribute('min', '2000-01')
-    expect(to).toHaveAttribute('max', '2100-12')
+    expect(dateButton('Desde')).toHaveTextContent('junio de 2026')
+    expect(dateButton('Hasta')).toHaveTextContent('noviembre de 2026')
   })
 
-  it('reports the whole range when one end is changed', () => {
+  it('reports the whole range when one end is changed', async () => {
+    const user = userEvent.setup()
     const { onCustom } = setup()
 
-    fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-03' } })
+    await pickMonth(user, 'Desde', '2026-03')
     expect(onCustom).toHaveBeenLastCalledWith({ from: '2026-03', to: '2026-11' })
 
-    fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-09' } })
+    await pickMonth(user, 'Hasta', '2026-09')
     expect(onCustom).toHaveBeenLastCalledWith({ from: '2026-06', to: '2026-09' })
-  })
-
-  it('ignores a field that was cleared', () => {
-    const { onCustom } = setup()
-
-    fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '' } })
-
-    expect(onCustom).not.toHaveBeenCalled()
   })
 })

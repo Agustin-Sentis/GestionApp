@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { ApiError, api } from '../api.ts'
 import type { RecoveryCodes as RecoveryCodesData, TwoFactorSetup } from '../api.ts'
+import PasswordField from './PasswordField.tsx'
 import RecoveryCodes from './RecoveryCodes.tsx'
 import { useToast } from './toastContext.ts'
 
@@ -140,17 +141,7 @@ export default function TwoFactorPanel({ onBlockingChange }: Props) {
   const errorLine = error && <p className="error-text" role="alert">{error}</p>
 
   const passwordField = (
-    <label className="field">
-      Tu contraseña
-      <input
-        className="input"
-        type="password"
-        autoComplete="current-password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        autoFocus
-      />
-    </label>
+    <PasswordField label="Tu contraseña" value={password} onChange={setPassword} autoComplete="current-password" autoFocus />
   )
 
   let body

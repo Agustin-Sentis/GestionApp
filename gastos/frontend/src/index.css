@@ -215,8 +215,9 @@
     @apply min-w-0 rounded-none border-0 border-b-2 border-line bg-transparent px-1 py-2 text-base font-normal tracking-normal text-ink normal-case focus-visible:border-pen focus-visible:outline-0;
   }
 
+  /* The hint is the theme's secondary text at full strength: with transparency it fell below the 4.5:1 contrast that text needs */
   .input::placeholder {
-    @apply text-ink-soft/70;
+    @apply text-ink-soft;
   }
 
   .btn {
@@ -297,7 +298,21 @@
   }
 }
 
+/* The row that was just added: the highlighter passes over it and fades. */
+@keyframes just-added {
+  from {
+    background-color: color-mix(in srgb, var(--mark) 70%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
+  .just-added {
+    animation: just-added 2s ease-out both;
+  }
+
   .write-in {
     animation: write-in 0.45s ease-out both;
     animation-delay: var(--delay, 0s);

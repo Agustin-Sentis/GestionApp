@@ -73,15 +73,15 @@ export default function LandingPage() {
               {/* Stacked on the narrowest phones: three columns of figures do not fit in 270px and overlapped */}
               <dl className="grid grid-cols-1 gap-3 p-5 min-[360px]:grid-cols-3">
                 <div>
-                  <dt className="muted text-[0.7rem] font-semibold tracking-wide uppercase">Ingresos</dt>
+                  <dt className="muted text-xs font-semibold tracking-wide uppercase">Ingresos</dt>
                   <dd className="figure text-xs text-income sm:text-sm">{formatMoney(totals.income)}</dd>
                 </div>
                 <div>
-                  <dt className="muted text-[0.7rem] font-semibold tracking-wide uppercase">Gastos</dt>
+                  <dt className="muted text-xs font-semibold tracking-wide uppercase">Gastos</dt>
                   <dd className="figure text-xs text-expense sm:text-sm">{formatMoney(totals.expense)}</dd>
                 </div>
                 <div>
-                  <dt className="muted text-[0.7rem] font-semibold tracking-wide uppercase">Te queda</dt>
+                  <dt className="muted text-xs font-semibold tracking-wide uppercase">Te queda</dt>
                   <dd>
                     <span
                       className="marker paint-in figure border-b-[3px] border-double border-ink text-xs font-bold sm:text-sm"
@@ -127,7 +127,7 @@ export default function LandingPage() {
         {/* The signature at the foot of the page */}
         <footer className="grid gap-6 border-t border-line pt-8 pb-12 sm:grid-cols-[1fr_auto] sm:items-end">
           <div className="flex flex-col items-start gap-2">
-            <p className="muted text-[0.7rem] font-semibold tracking-wide uppercase">Hecho por</p>
+            <p className="muted text-xs font-semibold tracking-wide uppercase">Hecho por</p>
             <p className="hand border-b-2 border-ink pr-10 text-3xl leading-tight font-bold">Agustín Sentis</p>
             <p className="muted text-sm">
               Rosario, Argentina. Un proyecto de portfolio hecho con .NET 10, React y PostgreSQL.

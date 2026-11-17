@@ -137,7 +137,7 @@ describe('MonthlyReportView charts', () => {
   it('says why there is no chart instead of drawing an empty one', async () => {
     setup(reportOf({ income: 0, balance: -5, byCategory: [{ name: 'Comida', type: 'Expense', total: 5 }] }), '/?grafico=ingresos')
 
-    expect(await screen.findByText('No hay ingresos cargados en este mes.')).toBeInTheDocument()
+    expect(await screen.findByText('Todavía no agregaste ingresos este mes.')).toBeInTheDocument()
     expect(screen.queryByTestId('chart')).not.toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
@@ -145,7 +145,7 @@ describe('MonthlyReportView charts', () => {
   it('asks for an income when the chart of the income is open and there is none', async () => {
     setup(reportOf({ income: 0, balance: -5, byCategory: [{ name: 'Comida', type: 'Expense', total: 5 }] }), '/?grafico=destino')
 
-    expect(await screen.findByText(/cargá uno/)).toBeInTheDocument()
+    expect(await screen.findByText(/agregá uno/)).toBeInTheDocument()
   })
 
   it('gives a category the same color in the table of every chart', async () => {

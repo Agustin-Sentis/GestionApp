@@ -215,3 +215,21 @@ describe('BudgetPanel', () => {
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Presupuestos' })).not.toBeInTheDocument())
   })
 })
+
+describe('BudgetPanel bar', () => {
+  it('is a stroke on a ruled line, not a box: with nothing spent only the line is there', async () => {
+    setup({
+      report: reportOf([
+        progress({ categoryId: 'x1', name: 'Comida', monthlyBudget: 100000, spent: 0, usedPercent: 0, status: 'Ok' }),
+        progress({ categoryId: 'x2', name: 'Gym', monthlyBudget: 10000, spent: 8300, usedPercent: 83, status: 'Warning' }),
+      ]),
+    })
+
+    const [empty, warned] = await screen.findAllByRole('progressbar')
+    expect(empty.className).toContain('border-b-2')
+    expect(empty.className).not.toContain('border-2 ')
+    expect((empty.firstElementChild as HTMLElement).style.width).toBe('0%')
+    expect((warned.firstElementChild as HTMLElement).style.width).toBe('83%')
+    expect(warned.firstElementChild).toHaveClass('bg-mark')
+  })
+})

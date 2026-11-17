@@ -32,8 +32,15 @@ function SliceTooltip({ active, payload, percentLabel }: TooltipProps) {
  */
 export default function ReportChart({ view }: { view: DrawnView }) {
   return (
-    <div aria-hidden="true" className="w-full">
+    <div aria-hidden="true" className="relative w-full">
       {view.shape === 'donut' ? <Donut view={view} /> : <RankedBars view={view} />}
+      {/* In the hole of the donut: the one figure that sums it up (the table says all the others). It does not catch the mouse, so the tooltip still works under it */}
+      {view.shape === 'donut' && view.center && (
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+          <span className="figure text-sm font-bold">{view.center.value}</span>
+          <span className="muted text-xs">{view.center.label}</span>
+        </div>
+      )}
     </div>
   )
 }

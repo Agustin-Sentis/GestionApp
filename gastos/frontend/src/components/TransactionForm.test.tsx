@@ -1,13 +1,15 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { saveSession } from '../api.ts'
 import { mockApi } from '../test/fetchMock.ts'
-import { food, salary, transaction } from '../test/fixtures.ts'
+import { food, pageOf, salary, transaction } from '../test/fixtures.ts'
 import { renderWithProviders } from '../test/render.tsx'
-import { todayLocal } from '../format.ts'
+import { formatDate, todayLocal } from '../format.ts'
+import { dateButton, findDateButton, pickDate } from '../test/datePicker.ts'
 import { useListFilters } from '../useListFilters.ts'
 import TransactionForm from './TransactionForm.tsx'
+import TransactionList from './TransactionList.tsx'
 
 function signedIn() {
   saveSession({ token: 'jwt', expiresAtUtc: new Date(Date.now() + 3_600_000).toISOString() })
@@ -92,37 +94,38 @@ describe('TransactionForm and the month on screen', () => {
   it('starts the date inside a past month, on its last day', async () => {
     setupWithControls('/?mes=2000-03')
 
-    expect(await screen.findByLabelText('Fecha')).toHaveValue('2000-03-31')
+    expect(await findDateButton('Fecha')).toHaveTextContent('31/03/2000')
   })
 
   it('starts the date inside a future month, on its first day', async () => {
     setupWithControls('/?mes=2099-01')
 
-    expect(await screen.findByLabelText('Fecha')).toHaveValue('2099-01-01')
+    expect(await findDateButton('Fecha')).toHaveTextContent('01/01/2099')
   })
 
   it('starts the date today when the month on screen is the current one', async () => {
     setupWithControls('/')
 
-    expect(await screen.findByLabelText('Fecha')).toHaveValue(todayLocal())
+    expect(await findDateButton('Fecha')).toHaveTextContent(formatDate(todayLocal()))
   })
 
   it('moves the suggested date along when the month on screen changes', async () => {
     setupWithControls('/?mes=2000-03')
-    await screen.findByLabelText('Fecha')
+    await findDateButton('Fecha')
 
     await userEvent.click(screen.getByText('ir a abril de 2000'))
 
-    await waitFor(() => expect(screen.getByLabelText('Fecha')).toHaveValue('2000-04-30'))
+    await waitFor(() => expect(dateButton('Fecha')).toHaveTextContent('30/04/2000'))
   })
 
   it('does not overwrite a date the user chose when the month changes', async () => {
     setupWithControls('/?mes=2000-03')
-    fireEvent.change(await screen.findByLabelText('Fecha'), { target: { value: '2000-03-10' } })
+    await findDateButton('Fecha')
+    await pickDate(userEvent.setup(), 'Fecha', '2000-03-10')
 
     await userEvent.click(screen.getByText('ir a abril de 2000'))
 
-    expect(screen.getByLabelText('Fecha')).toHaveValue('2000-03-10')
+    expect(dateButton('Fecha')).toHaveTextContent('10/03/2000')
   })
 
   it('does not add a month to the notice when the movement lands in the month on screen', async () => {
@@ -140,7 +143,7 @@ describe('TransactionForm and the month on screen', () => {
     setupWithControls('/?mes=2000-03')
     await userEvent.type(await screen.findByLabelText('Monto'), '100')
     await userEvent.selectOptions(screen.getByLabelText('Categoría'), food.id)
-    fireEvent.change(screen.getByLabelText('Fecha'), { target: { value: '2026-11-05' } })
+    await pickDate(userEvent.setup(), 'Fecha', '2026-11-05')
 
     await userEvent.click(screen.getByRole('button', { name: 'Agregar' }))
 
@@ -160,7 +163,8 @@ describe('TransactionForm and the month on screen', () => {
     })
     renderWithProviders(<TransactionForm editing={editing} />, { route: '/?mes=2000-03' })
 
-    fireEvent.change(await screen.findByLabelText('Fecha'), { target: { value: '2000-05-02' } })
+    await findDateButton('Fecha')
+    await pickDate(userEvent.setup(), 'Fecha', '2000-05-02')
     await userEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
 
     expect(await screen.findByText('Movimiento actualizado en mayo de 2000')).toBeInTheDocument()
@@ -180,7 +184,7 @@ describe('TransactionForm and the month on screen', () => {
 
     await userEvent.click(await screen.findByText('ir a abril de 2000'))
 
-    expect(screen.getByLabelText('Fecha')).toHaveValue('2000-03-10')
+    expect(dateButton('Fecha')).toHaveTextContent('10/03/2000')
   })
 })
 
@@ -193,7 +197,7 @@ describe('TransactionForm editing', () => {
     expect(await screen.findByRole('heading', { name: 'Editar movimiento' })).toBeInTheDocument()
     expect(screen.getByLabelText('Monto')).toHaveValue(1500)
     expect(screen.getByLabelText('Moneda')).toHaveValue('ARS')
-    expect(screen.getByLabelText('Fecha')).toHaveValue('2026-11-05')
+    expect(dateButton('Fecha')).toHaveTextContent('05/11/2026')
     expect(screen.getByLabelText('Nota (opcional)')).toHaveValue('almuerzo')
     await waitFor(() => expect(screen.getByLabelText('Categoría')).toHaveValue(food.id))
   })
@@ -340,5 +344,57 @@ describe('TransactionForm editing', () => {
     await userEvent.selectOptions(screen.getByLabelText('Moneda'), 'ARS')
 
     expect(screen.queryByText(/Se va a guardar con la cotización/)).not.toBeInTheDocument()
+  })
+})
+
+describe('TransactionForm and the row it adds to the ledger', () => {
+  it('highlights the row of the movement it just added, and lets go of it after a moment', async () => {
+    signedIn()
+    const created = transaction({ id: 'new-1', note: 'recién agregado' })
+    mockApi({
+      'GET /api/category': () => ({ body: [food, salary] }),
+      'POST /api/transaction': () => ({ status: 201, body: created }),
+      'GET /api/transaction/paged': () => ({ body: pageOf([created]) }),
+    })
+    renderWithProviders(
+      <>
+        <TransactionForm />
+        <TransactionList />
+      </>,
+      { route: '/?mes=2026-11' },
+    )
+
+    // The list has a "Categoría" filter too: the form is looked into on its own
+    const form = within((await screen.findByRole('heading', { name: 'Nuevo movimiento' })).closest('form')!)
+    await userEvent.type(await form.findByLabelText('Monto'), '1500')
+    await userEvent.selectOptions(form.getByLabelText('Categoría'), food.id)
+    await userEvent.click(form.getByRole('button', { name: 'Agregar' }))
+
+    const row = (await screen.findByText('recién agregado')).closest('tr')!
+    await waitFor(() => expect(row).toHaveClass('just-added'))
+    // The mark is forgotten after the time of the animation
+    await waitFor(() => expect(row).not.toHaveClass('just-added'), { timeout: 4000 })
+  })
+
+  it('does not mark a row when what is saved is an edit', async () => {
+    signedIn()
+    const existing = transaction({ id: 't1', note: 'ya estaba' })
+    mockApi({
+      'GET /api/category': () => ({ body: [food, salary] }),
+      [`PUT /api/transaction/${existing.id}`]: () => ({ status: 204 }),
+      'GET /api/transaction/paged': () => ({ body: pageOf([existing]) }),
+    })
+    renderWithProviders(
+      <>
+        <TransactionForm editing={existing} />
+        <TransactionList />
+      </>,
+      { route: '/?mes=2026-11' },
+    )
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Guardar cambios' }))
+
+    const row = (await screen.findByText('ya estaba', { selector: 'div' })).closest('tr')!
+    expect(row).not.toHaveClass('just-added')
   })
 })

@@ -43,3 +43,34 @@ describe('the theme colors', () => {
     }
   })
 })
+
+/** The color variables a theme declares, from the block that starts with the given selector (":root" or ".dark"). */
+function themeColors(selector: string): Record<string, string> {
+  const start = css.indexOf(`\n${selector} {`)
+  const block = css.slice(start, css.indexOf('}', start))
+  return Object.fromEntries([...block.matchAll(/--([\w-]+):\s*(#[0-9a-fA-F]{6})/g)].map((match) => [match[1], match[2]]))
+}
+
+function luminance(hex: string): number {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+const contrast = (a: string, b: string) => {
+  const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x)
+  return (light + 0.05) / (dark + 0.05)
+}
+
+describe('the secondary text and the hints inside the fields', () => {
+  it('has no transparency on the hint of a field: with it the contrast fell to 3:1', () => {
+    expect(rule('.input::placeholder')).toMatch(/text-ink-soft;/)
+    expect(rule('.input::placeholder')).not.toMatch(/text-ink-soft\//)
+  })
+
+  it.each([':root', '.dark'])('reaches 4.5:1 against the sheet and against the paper in %s', (selector) => {
+    const colors = themeColors(selector)
+
+    expect(contrast(colors['ink-soft'], colors.paper)).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(colors['ink-soft'], colors.sheet)).toBeGreaterThanOrEqual(4.5)
+  })
+})

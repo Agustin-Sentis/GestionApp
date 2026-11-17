@@ -1,6 +1,6 @@
 import { EXPENSE, INCOME } from './api.ts'
 import type { Category, CategoryTotal, MonthlyReport } from './api.ts'
-import { formatPercent } from './format.ts'
+import { formatMoneyCompact, formatPercent } from './format.ts'
 
 /** The charts the summary can show. The value is what goes in the URL (?grafico=destino). */
 export type ChartKind = 'destino' | 'gastos' | 'ingresos' | 'ranking' | 'comparacion'
@@ -31,15 +31,24 @@ export interface Slice {
   detail?: string
 }
 
+/** What is written in the hole of a donut: the figure that sums the chart up, with a word under it. */
+export interface DonutCenter {
+  value: string
+  label: string
+}
+
 export type ChartView =
   | { shape: 'empty'; message: string }
-  | { shape: 'donut' | 'bars'; slices: Slice[]; percentLabel: string; note: string | null }
+  | { shape: 'donut' | 'bars'; slices: Slice[]; percentLabel: string; note: string | null; center?: DonutCenter }
 
 /** Past this many parts a donut cannot be read: the smallest ones are folded into "Otras". */
 export const MAX_DONUT_SLICES = 6
 
 /** The validated categorical palette has eight hues; a ninth is never invented. */
 const SERIES_COUNT = 8
+
+/** What a chart says when the month has no movements at all. "Agregar" is the word of the form and of its notice. */
+const NO_MOVEMENTS = 'Todavía no agregaste movimientos este mes.'
 
 const REST_COLOR = 'var(--chart-rest)'
 const OTHER_COLOR = 'var(--chart-other)'
@@ -107,7 +116,7 @@ export function buildChartView(kind: ChartKind, report: MonthlyReport, order: st
       if (expenses.length === 0) {
         return {
           shape: 'empty',
-          message: incomes.length > 0 ? 'No hay gastos cargados en este mes.' : 'Todavía no hay movimientos cargados en este mes.',
+          message: incomes.length > 0 ? 'Todavía no agregaste gastos este mes.' : NO_MOVEMENTS,
         }
       }
       return {
@@ -115,27 +124,33 @@ export function buildChartView(kind: ChartKind, report: MonthlyReport, order: st
         slices: toSlices(expenses, sum(expenses), order, MAX_DONUT_SLICES),
         percentLabel: '% de los gastos',
         note: null,
+        center: { value: formatMoneyCompact(sum(expenses)), label: 'en gastos' },
       }
     }
 
     case 'ingresos': {
-      if (incomes.length === 0) return { shape: 'empty', message: 'No hay ingresos cargados en este mes.' }
+      if (incomes.length === 0) return { shape: 'empty', message: 'Todavía no agregaste ingresos este mes.' }
       return {
         shape: 'donut',
         slices: toSlices(incomes, sum(incomes), order, MAX_DONUT_SLICES),
         percentLabel: '% de los ingresos',
         note: null,
+        center: { value: formatMoneyCompact(sum(incomes)), label: 'en ingresos' },
       }
     }
 
     case 'destino': {
       const income = sum(incomes)
       if (income <= 0) {
-        return { shape: 'empty', message: 'Todavía no hay ingresos en este mes: cargá uno para ver cómo se reparte.' }
+        return { shape: 'empty', message: 'Todavía no agregaste ingresos este mes: agregá uno para ver cómo se reparte.' }
       }
 
       // Every percentage is a share of the INCOME, so adding an income changes all of them
       const spent = sum(expenses)
+      // A ring that is all "Sin gastar" says nothing: with no expenses there is nothing to split
+      if (spent <= 0) {
+        return { shape: 'empty', message: 'Todavía no agregaste gastos este mes: todo lo que ingresó sigue disponible.' }
+      }
       const unspent = income - spent
       const slices = toSlices(expenses, income, order, unspent > 0 ? MAX_DONUT_SLICES - 1 : MAX_DONUT_SLICES)
       if (unspent > 0) {
@@ -147,12 +162,18 @@ export function buildChartView(kind: ChartKind, report: MonthlyReport, order: st
         spent > income
           ? `Los gastos superan los ingresos: gastaste el ${spentPercent} de lo que ingresó. El gráfico muestra cómo se reparten los gastos; los porcentajes del detalle son sobre los ingresos.`
           : `Gastaste el ${spentPercent} de lo que ingresó este mes.`
-      return { shape: 'donut', slices, percentLabel: '% de los ingresos', note }
+      return {
+        shape: 'donut',
+        slices,
+        percentLabel: '% de los ingresos',
+        note,
+        center: { value: spentPercent, label: 'gastado' },
+      }
     }
 
     case 'ranking': {
       const rows = report.byCategory.filter((c) => c.total > 0).sort((a, b) => b.total - a.total)
-      if (rows.length === 0) return { shape: 'empty', message: 'Todavía no hay movimientos cargados en este mes.' }
+      if (rows.length === 0) return { shape: 'empty', message: NO_MOVEMENTS }
 
       const totals = { [EXPENSE]: sum(expenses), [INCOME]: sum(incomes) }
       return {
@@ -174,7 +195,7 @@ export function buildChartView(kind: ChartKind, report: MonthlyReport, order: st
       const income = sum(incomes)
       const expense = sum(expenses)
       if (income <= 0 && expense <= 0) {
-        return { shape: 'empty', message: 'Todavía no hay movimientos cargados en este mes.' }
+        return { shape: 'empty', message: NO_MOVEMENTS }
       }
 
       return {

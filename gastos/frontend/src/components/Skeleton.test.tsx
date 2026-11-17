@@ -89,7 +89,7 @@ describe('loading states', () => {
 
     response.resolve(pageOf([]))
 
-    expect(await screen.findByText('No hay movimientos en este mes.')).toBeInTheDocument()
+    expect(await screen.findByText('Todavía no agregaste movimientos este mes.')).toBeInTheDocument()
     expect(screen.queryByText('Cargando los movimientos…')).not.toBeInTheDocument()
   })
 

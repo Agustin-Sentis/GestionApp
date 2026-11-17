@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useLocation } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
@@ -6,6 +6,7 @@ import { saveSession } from '../api.ts'
 import type { EvolutionReport, MonthEvolution } from '../api.ts'
 import { formatMoney } from '../format.ts'
 import { mockApi } from '../test/fetchMock.ts'
+import { dateButton, pickMonth } from '../test/datePicker.ts'
 import { renderWithProviders } from '../test/render.tsx'
 import EvolutionView from './EvolutionView.tsx'
 
@@ -96,8 +97,8 @@ describe('EvolutionView', () => {
 
     await screen.findByTestId('chart')
     expect(requests(fetchMock)).toEqual([{ from: '2026-03', to: '2026-05' }])
-    expect(screen.getByLabelText('Desde')).toHaveValue('2026-03')
-    expect(screen.getByLabelText('Hasta')).toHaveValue('2026-05')
+    expect(dateButton('Desde')).toHaveTextContent('marzo de 2026')
+    expect(dateButton('Hasta')).toHaveTextContent('mayo de 2026')
   })
 
   it('changes the range with a shortcut, and keeps it in the address', async () => {
@@ -118,7 +119,7 @@ describe('EvolutionView', () => {
     const fetchMock = setup()
     await screen.findByTestId('chart')
 
-    fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-01' } })
+    await pickMonth(userEvent.setup(), 'Desde', '2026-01')
 
     await waitFor(() => expect(requests(fetchMock).at(-1)).toEqual({ from: '2026-01', to: '2026-11' }))
     const url = new URLSearchParams(screen.getByTestId('url').textContent ?? '')
@@ -134,7 +135,7 @@ describe('EvolutionView', () => {
     expect(requests(fetchMock)).toEqual([])
     expect(screen.queryByTestId('chart')).not.toBeInTheDocument()
     // The fields keep what was written, so it can be fixed
-    expect(screen.getByLabelText('Desde')).toHaveValue('2026-09')
+    expect(dateButton('Desde')).toHaveTextContent('septiembre de 2026')
   })
 
   it('says a range of more than 24 months cannot be shown', async () => {

@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { ApiError, api } from '../api.ts'
 import { useAuth } from '../auth.tsx'
 import Brand, { APP_NAME } from '../components/Brand.tsx'
+import PasswordField from '../components/PasswordField.tsx'
 import PasswordRulesHint from '../components/PasswordRulesHint.tsx'
 import ThemeToggle from '../components/ThemeToggle.tsx'
 
@@ -182,23 +183,22 @@ export default function AuthPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     autoComplete="email"
+                    placeholder="tu@correo.com"
                     required
                   />
                 </label>
 
                 {!isForgot && (
-                  <label className="field">
-                    Contraseña
-                    <input
-                      className="input"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      autoComplete={isSignIn ? 'current-password' : 'new-password'}
-                      required
-                    />
+                  <PasswordField
+                    label="Contraseña"
+                    value={password}
+                    onChange={setPassword}
+                    autoComplete={isSignIn ? 'current-password' : 'new-password'}
+                    placeholder={isSignIn ? 'Tu contraseña' : 'Creá una contraseña'}
+                    required
+                  >
                     {!isSignIn && <PasswordRulesHint />}
-                  </label>
+                  </PasswordField>
                 )}
 
                 {isSignIn && (
