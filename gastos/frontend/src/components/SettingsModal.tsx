@@ -4,13 +4,15 @@ import type { PointerEvent as ReactPointerEvent } from 'react'
 import { api } from '../api.ts'
 import BudgetAlertsToggle from './BudgetAlertsToggle.tsx'
 import EmailConfirmationActions from './EmailConfirmationActions.tsx'
+import ThemeToggle from './ThemeToggle.tsx'
 import TwoFactorPanel from './TwoFactorPanel.tsx'
 
-export type SettingsSection = 'security' | 'notifications'
+export type SettingsSection = 'security' | 'notifications' | 'appearance'
 
 const SECTIONS: { id: SettingsSection; label: string }[] = [
   { id: 'security', label: 'Seguridad' },
   { id: 'notifications', label: 'Notificaciones' },
+  { id: 'appearance', label: 'Apariencia' },
 ]
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -23,7 +25,8 @@ interface Props {
 }
 
 /**
- * The settings window: security (the two-step verification) and notifications (the address and the budget alert mails).
+ * The settings window: security (the two-step verification), notifications (the address and the budget alert mails) and
+ * appearance (the theme: it is not in the dashboard header any more, to leave room for the figures).
  * It is a modal: the focus stays inside while it is open and goes back to what opened it. Escape, the close button and a
  * click outside close it, except while the recovery codes are on screen: they are shown once, so nothing closes it (or
  * changes the section) until the user says they saved them.
@@ -103,7 +106,7 @@ export default function SettingsModal({ open, section, onSectionChange, onClose 
           <h2 id={titleId} className="panel-title">Ajustes</h2>
           <button
             type="button"
-            className="btn px-2.5"
+            className="btn px-2.5 pointer-coarse:min-w-11"
             aria-label="Cerrar ajustes"
             title={blockedHint}
             disabled={blocked}
@@ -113,7 +116,7 @@ export default function SettingsModal({ open, section, onSectionChange, onClose 
           </button>
         </div>
 
-        <div role="tablist" aria-label="Secciones de ajustes" className="grid grid-cols-2 border-b-2 border-ink">
+        <div role="tablist" aria-label="Secciones de ajustes" className="flex border-b-2 border-ink">
           {SECTIONS.map((option) => (
             <button
               key={option.id}
@@ -125,7 +128,9 @@ export default function SettingsModal({ open, section, onSectionChange, onClose 
               disabled={blocked && section !== option.id}
               title={blocked && section !== option.id ? blockedHint : undefined}
               onClick={() => onSectionChange(option.id)}
-              className={`display cursor-pointer px-2 py-2.5 text-sm uppercase disabled:cursor-not-allowed disabled:opacity-50 ${
+              // A third of a narrow window: normal-width letters and a smaller size there, the wide ones from sm up
+              // (the same as the tabs at the foot of the dashboard). truncate is the last resort against overlapping labels.
+              className={`display min-w-0 flex-auto cursor-pointer truncate px-1 py-2.5 text-[0.7rem] uppercase [font-stretch:100%] disabled:cursor-not-allowed disabled:opacity-50 pointer-coarse:min-h-11 sm:px-2 sm:text-sm sm:[font-stretch:125%] ${
                 section === option.id ? 'bg-mark text-on-mark' : 'text-ink-soft hover:text-ink'
               }`}
             >
@@ -140,10 +145,22 @@ export default function SettingsModal({ open, section, onSectionChange, onClose 
           aria-labelledby={`settings-tab-${section}`}
           className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4"
         >
-          {section === 'security' ? <TwoFactorPanel onBlockingChange={setBlocked} /> : <NotificationsSection />}
+          {section === 'security' && <TwoFactorPanel onBlockingChange={setBlocked} />}
+          {section === 'notifications' && <NotificationsSection />}
+          {section === 'appearance' && <AppearanceSection />}
         </div>
       </div>
     </div>
+  )
+}
+
+/** How the app looks: the page (light), the chalkboard (dark) or whatever the device uses. */
+function AppearanceSection() {
+  return (
+    <section className="flex flex-col gap-3" aria-labelledby="settings-theme-title">
+      <h3 id="settings-theme-title" className="panel-title text-base">Tema</h3>
+      <ThemeToggle showLabels />
+    </section>
   )
 }
 

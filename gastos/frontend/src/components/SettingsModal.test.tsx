@@ -51,7 +51,7 @@ describe('SettingsModal', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('opens as a modal dialog called Ajustes, with its two sections', async () => {
+  it('opens as a modal dialog called Ajustes, with its three sections', async () => {
     const { user } = setup()
 
     await open(user)
@@ -60,7 +60,24 @@ describe('SettingsModal', () => {
     expect(dialog).toHaveAttribute('aria-modal', 'true')
     expect(screen.getByRole('tab', { name: 'Seguridad' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('tab', { name: 'Notificaciones' })).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByRole('tab', { name: 'Apariencia' })).toHaveAttribute('aria-selected', 'false')
     expect(await screen.findByRole('heading', { name: 'Verificación en dos pasos' })).toBeInTheDocument()
+  })
+
+  it('has the theme in its Apariencia section, each choice with its name and the line that explains the chosen one', async () => {
+    const { user } = setup(settings(), { initial: 'appearance' })
+
+    await open(user)
+
+    expect(screen.getByRole('tab', { name: 'Apariencia' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('group', { name: 'Tema' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Sistema' })).toBeChecked()
+    expect(screen.getByText('Usa el modo claro u oscuro de tu dispositivo.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: /^Pizarrón/ }))
+
+    expect(localStorage.getItem('gastos.theme')).toBe('dark')
+    expect(screen.getByText('Modo oscuro, como un pizarrón con tiza.')).toBeInTheDocument()
   })
 
   it('opens on the section it was asked for', async () => {

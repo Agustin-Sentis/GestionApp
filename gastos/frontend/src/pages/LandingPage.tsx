@@ -26,7 +26,7 @@ export default function LandingPage() {
         </header>
 
         <main>
-          <section className="grid gap-12 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-20">
+          <section className="grid grid-cols-1 gap-12 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-20">
             <div className="flex flex-col items-start gap-6">
               <h1 className="display text-[clamp(2.2rem,5.4vw,4.1rem)] leading-[1.02] break-words">
                 Anotá lo que gastás.
@@ -47,7 +47,7 @@ export default function LandingPage() {
 
             <figure aria-label="Ejemplo de una hoja del libro" className="card gap-0 p-0 lg:rotate-1">
               <figcaption className="panel-title mx-5 mt-5">Noviembre · hoja de ejemplo</figcaption>
-              <table className="mx-2 mt-2 text-sm">
+              <table className="mx-0 mt-2 text-sm min-[360px]:mx-2">
                 <tbody>
                   {SAMPLE_LINES.map((line, index) => (
                     <tr
@@ -70,7 +70,8 @@ export default function LandingPage() {
                   ))}
                 </tbody>
               </table>
-              <dl className="grid grid-cols-3 gap-3 p-5">
+              {/* Stacked on the narrowest phones: three columns of figures do not fit in 270px and overlapped */}
+              <dl className="grid grid-cols-1 gap-3 p-5 min-[360px]:grid-cols-3">
                 <div>
                   <dt className="muted text-[0.7rem] font-semibold tracking-wide uppercase">Ingresos</dt>
                   <dd className="figure text-xs text-income sm:text-sm">{formatMoney(totals.income)}</dd>

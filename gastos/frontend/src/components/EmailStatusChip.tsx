@@ -52,7 +52,7 @@ export default function EmailStatusChip() {
       <button
         ref={chipRef}
         type="button"
-        className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-sm border-2 border-ink px-2.5 text-xs font-bold text-ink hover:bg-mark hover:text-on-mark focus-visible:outline-3 focus-visible:outline-pen"
+        className="inline-flex h-9 cursor-pointer items-center gap-1.5 pointer-coarse:h-10 rounded-sm border-2 border-ink px-2.5 text-xs font-bold text-ink hover:bg-mark hover:text-on-mark focus-visible:outline-3 focus-visible:outline-pen"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
         onClick={() => (open ? close() : setOpen(true))}
