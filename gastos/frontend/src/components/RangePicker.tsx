@@ -32,7 +32,7 @@ export default function RangePicker({ mode, from, to, onPreset, onCustom }: Prop
             type="button"
             aria-pressed={mode === preset.value}
             onClick={() => onPreset(preset.value)}
-            className={`cursor-pointer rounded-sm border-2 border-ink px-2.5 py-1 text-xs font-bold focus-visible:outline-3 focus-visible:outline-pen ${
+            className={`cursor-pointer rounded-sm border-2 border-ink px-2.5 py-1 pointer-coarse:min-h-11 text-xs font-bold focus-visible:outline-3 focus-visible:outline-pen ${
               mode === preset.value ? 'bg-mark text-on-mark' : 'text-ink hover:bg-mark hover:text-on-mark'
             }`}
           >

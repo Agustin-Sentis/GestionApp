@@ -44,7 +44,7 @@ export default function DollarTypeToggle() {
           const hintId = `${idPrefix}-${value}`
           return (
             <div key={value} className="group">
-              <label className="grid h-9 min-w-14 cursor-pointer place-items-center px-2.5 text-xs font-bold text-ink-soft hover:text-ink has-checked:bg-mark has-checked:text-on-mark has-disabled:cursor-wait has-focus-visible:outline-3 has-focus-visible:-outline-offset-3 has-focus-visible:outline-pen">
+              <label className="grid h-9 min-w-14 cursor-pointer pointer-coarse:h-10 place-items-center px-2.5 text-xs font-bold text-ink-soft hover:text-ink has-checked:bg-mark has-checked:text-on-mark has-disabled:cursor-wait has-focus-visible:outline-3 has-focus-visible:-outline-offset-3 has-focus-visible:outline-pen">
                 <input
                   type="radio"
                   name="dollar-type"

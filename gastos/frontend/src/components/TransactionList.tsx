@@ -140,8 +140,9 @@ export default function TransactionList({ onEdit, editingId = null, onDeleted }:
         </label>
 
         {/* On its own row: "Desde" and "Hasta" then sit side by side under it, and not one beside the tick and one below */}
-        <label className="col-span-2 inline-flex items-center gap-2 py-1 text-sm">
+        <label className="col-span-2 inline-flex items-center gap-2 py-1 pointer-coarse:min-h-11 pointer-coarse:py-3 text-sm">
           <input
+            className="pointer-coarse:size-5"
             type="checkbox"
             checked={filters.rangeMode}
             onChange={(e) => list.setRangeMode(e.target.checked)}

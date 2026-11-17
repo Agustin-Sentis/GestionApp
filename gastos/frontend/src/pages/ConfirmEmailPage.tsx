@@ -35,7 +35,7 @@ export default function ConfirmEmailPage() {
       />
 
       <div className="mx-auto flex min-h-dvh max-w-6xl flex-col pr-4 pl-8 sm:pr-8 sm:pl-24">
-        <header className="flex items-center justify-between gap-4 py-5">
+        <header className="flex flex-wrap items-center justify-between gap-4 py-5">
           <Link to="/" aria-label={`${APP_NAME}, volver al inicio`}><Brand /></Link>
           <ThemeToggle />
         </header>

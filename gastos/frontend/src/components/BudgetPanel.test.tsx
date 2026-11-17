@@ -6,6 +6,7 @@ import type { BudgetProgress, Category, MonthlyReport } from '../api.ts'
 import { currentMonthValue, formatMoneyCompact, parseMonthValue } from '../format.ts'
 import { mockApi } from '../test/fetchMock.ts'
 import type { MockReply } from '../test/fetchMock.ts'
+import type { SettingsSection } from './SettingsModal.tsx'
 import { food, salary, settings } from '../test/fixtures.ts'
 import { renderWithProviders } from '../test/render.tsx'
 import BudgetPanel from './BudgetPanel.tsx'
@@ -31,7 +32,7 @@ interface Setup {
   saveReply?: MockReply
   year?: number
   month?: number
-  onOpenSettings?: (section: 'security' | 'notifications') => void
+  onOpenSettings?: (section: SettingsSection) => void
 }
 
 /** Renders the panel and returns the bodies of the PUTs it sent (parsed). */

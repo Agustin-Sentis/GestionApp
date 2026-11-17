@@ -21,7 +21,7 @@ export default function SummaryModeToggle({ mode, onChange }: Props) {
           type="button"
           aria-pressed={mode === option.value}
           onClick={() => onChange(option.value)}
-          className={`h-9 cursor-pointer px-3 text-xs font-bold focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-pen ${
+          className={`h-9 cursor-pointer px-3 pointer-coarse:h-11 text-xs font-bold focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-pen ${
             mode === option.value ? 'bg-mark text-on-mark' : 'text-ink-soft hover:text-ink'
           }`}
         >

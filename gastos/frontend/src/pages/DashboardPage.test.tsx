@@ -193,10 +193,14 @@ describe('DashboardPage', () => {
     })
   })
 
-  it('has the dollar selector in the header, next to the theme one', async () => {
+  it('has the dollar selector in the header, and the theme one in the settings window and not in the header', async () => {
     setup()
 
     expect(await screen.findByRole('group', { name: 'Dólar con el que se guardan los movimientos nuevos' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Tema' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /Ajustes/ }))
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Ajustes' })).getByRole('tab', { name: 'Apariencia' }))
     expect(screen.getByRole('group', { name: 'Tema' })).toBeInTheDocument()
   })
 
@@ -345,8 +349,8 @@ describe('DashboardPage', () => {
       expect(tab.className).toContain('min-w-0')
       expect(tab.className).toContain('truncate')
     }
-    // The controls of the header wrap, and the month field can shrink
-    expect(screen.getByRole('group', { name: 'Tema' }).parentElement?.className).toContain('flex-wrap')
+    // The header wraps its controls, and the month field can shrink
+    expect(screen.getByRole('banner').className).toContain('flex-wrap')
     expect(screen.getByLabelText('Mes a visualizar').className).toContain('min-w-0')
   })
 
@@ -394,7 +398,7 @@ describe('DashboardPage', () => {
 describe('DashboardPage settings window', () => {
   const full = { 'GET /api/settings': () => ({ body: settings({ emailConfirmed: true }) }) }
 
-  it('has a floating "Ajustes" button, and no settings window until it is pressed', async () => {
+  it('has an "Ajustes" button in the header, and no settings window until it is pressed', async () => {
     setup('/?mes=2026-11', full)
     await screen.findByText('almuerzo')
 
@@ -402,7 +406,7 @@ describe('DashboardPage settings window', () => {
     expect(screen.queryByRole('dialog', { name: 'Ajustes' })).not.toBeInTheDocument()
   })
 
-  it('opens the window on security from the floating button', async () => {
+  it('opens the window on security from the header button', async () => {
     setup('/?mes=2026-11', full)
     await screen.findByText('almuerzo')
 
@@ -424,7 +428,7 @@ describe('DashboardPage settings window', () => {
     expect(await within(dialog).findByRole('checkbox', { name: /Avisarme por correo/ })).toBeInTheDocument()
   })
 
-  it('opens on security again after it was closed from notifications, through the floating button', async () => {
+  it('opens on security again after it was closed from notifications, through the header button', async () => {
     setup('/?mes=2026-11', full)
     const card = (await screen.findByRole('heading', { name: 'Presupuestos' })).closest('section')!
     await userEvent.click(await within(card).findByRole('button', { name: 'Ajustes › Notificaciones' }))

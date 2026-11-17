@@ -235,6 +235,26 @@
     @apply cursor-pointer px-1.5 leading-none text-ink-soft hover:text-expense disabled:cursor-not-allowed disabled:opacity-50;
   }
 
+  /*
+   * On a touch screen a finger needs about 44px: the buttons and links get that much room to be pressed, while on a
+   * desktop (a precise pointer) they keep their compact size. Inline-flex so the text stays centered in the taller box.
+   */
+  @media (pointer: coarse) {
+    .btn,
+    .btn-primary {
+      min-height: 2.75rem;
+    }
+
+    .btn-link,
+    .btn-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+    }
+  }
+
   .error-text {
     @apply text-sm font-semibold text-expense;
   }

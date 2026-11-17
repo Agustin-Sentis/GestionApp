@@ -19,7 +19,6 @@ import type { SettingsSection } from '../components/SettingsModal.tsx'
 import MonthlyReportView from '../components/MonthlyReportView.tsx'
 import SummaryModeToggle from '../components/SummaryModeToggle.tsx'
 import type { SummaryMode } from '../components/SummaryModeToggle.tsx'
-import ThemeToggle from '../components/ThemeToggle.tsx'
 import TransactionForm from '../components/TransactionForm.tsx'
 import TransactionList from '../components/TransactionList.tsx'
 
@@ -46,8 +45,7 @@ function Panel({ id, current, children }: { id: View; current: View; children: R
       role="tabpanel"
       id={`panel-${id}`}
       aria-labelledby={`tab-${id}`}
-      // pb-16: room at the end for the floating settings button, so the last thing in a panel can be scrolled clear of it
-      className={`min-h-0 min-w-0 flex-col gap-3 overflow-x-hidden overflow-y-auto overscroll-contain pb-16 xl:flex ${current === id ? 'flex' : 'hidden'}`}
+      className={`min-h-0 min-w-0 flex-col gap-3 overflow-x-hidden overflow-y-auto overscroll-contain xl:flex ${current === id ? 'flex' : 'hidden'}`}
     >
       {children}
     </div>
@@ -109,19 +107,21 @@ export default function DashboardPage() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex shrink-0 flex-wrap items-center gap-x-6 gap-y-3 border-b-4 border-double border-margin bg-paper/80 px-3 py-3 sm:px-5 xl:border-b-2">
+        <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 sm:gap-x-6 border-b-4 border-double border-margin bg-paper/80 px-3 py-2 sm:gap-y-3 sm:px-5 sm:py-3 xl:border-b-2">
           <h1 className="sr-only">{APP_NAME}: gestor de gastos</h1>
           {/*
-            On a phone: the name and the controls share the first row, then the month, then the figures.
-            From lg up everything is one row, in this order: name (until the side margin has it), month, figures, controls.
+            On a phone: the name with the chip, the settings gear and "Salir" on the first row, then the dollar, then the month, then the figures
+            (the theme is in the settings window: it used to take a row of the header). Where the dollar and the month fit side
+            by side (sm), they share a row. From lg up everything is one row, in this order: name (until the side margin has
+            it), month, figures, dollar, chip and "Salir".
           */}
           <Brand className="order-1 xl:hidden" />
 
           {/* min-w-0 and max-w-full: on a very narrow screen the month field shrinks instead of pushing the page wider */}
-          <div className="order-3 inline-flex max-w-full min-w-0 items-center gap-1 lg:order-2">
+          <div className="order-4 inline-flex max-w-full min-w-0 items-center gap-1 lg:order-2">
             <button
               type="button"
-              className="btn shrink-0 px-2.5"
+              className="btn shrink-0 px-2.5 pointer-coarse:min-h-10 pointer-coarse:min-w-10"
               onClick={() => setMonth(addMonths(filters.month, -1))}
               disabled={filters.month <= MIN_MONTH}
               aria-label="Mes anterior"
@@ -138,7 +138,7 @@ export default function DashboardPage() {
             />
             <button
               type="button"
-              className="btn shrink-0 px-2.5"
+              className="btn shrink-0 px-2.5 pointer-coarse:min-h-10 pointer-coarse:min-w-10"
               onClick={() => setMonth(addMonths(filters.month, 1))}
               disabled={filters.month >= MAX_MONTH}
               aria-label="Mes siguiente"
@@ -148,17 +148,19 @@ export default function DashboardPage() {
           </div>
 
           {/* Under the other controls on a phone; beside them on a wide screen */}
-          <div className="order-4 basis-full lg:order-3 lg:min-w-[22rem] lg:max-w-xl lg:flex-1 lg:basis-auto">
+          <div className="order-5 basis-full lg:order-3 lg:min-w-[22rem] lg:max-w-xl lg:flex-1 lg:basis-auto">
             <MonthStats year={year} month={month} />
           </div>
 
-          {/* Wraps: with no room for both, "Salir" goes under the theme control instead of being cut off */}
-          <div className="order-2 ml-auto flex min-w-0 flex-wrap items-center justify-end gap-3 lg:order-4">
+          <div className="order-3 lg:order-4">
+            <DollarTypeToggle />
+          </div>
+
+          <div className="order-2 ml-auto flex min-w-0 items-center justify-end gap-2 sm:gap-3 lg:order-5">
             {/* Only while the address is not confirmed; it does not take up room otherwise */}
             <EmailStatusChip />
-            <DollarTypeToggle />
-            <ThemeToggle />
-            <button type="button" className="btn" onClick={signOut}>Salir</button>
+            <SettingsButton onClick={() => openSettings('security')} />
+            <button type="button" className="btn pointer-coarse:min-h-10" onClick={signOut}>Salir</button>
           </div>
         </header>
 
@@ -206,7 +208,7 @@ export default function DashboardPage() {
                 onClick={() => setView(option.id)}
                 // A third of a narrow screen is not much: normal-width letters and a smaller size there, the wide ones from sm up.
                 // min-w-0 and truncate are the last resort, so the labels can never be drawn over each other.
-                className={`display min-w-0 cursor-pointer truncate px-1 py-3 text-[0.7rem] tracking-[0.04em] uppercase [font-stretch:100%] sm:text-sm sm:[font-stretch:125%] ${
+                className={`display min-w-0 cursor-pointer truncate px-1 py-3 pointer-coarse:min-h-11 text-[0.7rem] tracking-[0.04em] uppercase [font-stretch:100%] sm:text-sm sm:[font-stretch:125%] ${
                   view === option.id ? 'bg-mark text-on-mark' : 'text-ink-soft hover:text-ink'
                 }`}
               >
@@ -217,7 +219,6 @@ export default function DashboardPage() {
         </nav>
       </div>
 
-      <SettingsButton onClick={() => openSettings('security')} />
       <SettingsModal
         open={settingsOpen}
         section={settingsSection}
