@@ -1,4 +1,4 @@
-import type { Category, PagedResult, Settings, Transaction } from '../api.ts'
+import type { Category, PagedResult, Settings, Transaction } from '../Services/api/api.ts'
 
 /** The settings of a user who has not touched the budget alerts; pass only what a test cares about. */
 export function settings(overrides: Partial<Settings> = {}): Settings {

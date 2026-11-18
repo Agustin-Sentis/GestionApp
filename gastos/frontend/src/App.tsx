@@ -1,16 +1,16 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import type { ReactNode } from 'react'
-import { useAuth } from './auth.tsx'
-import RequireAuth from './components/RequireAuth.tsx'
-import AuthPage from './pages/AuthPage.tsx'
-import ConfirmEmailPage from './pages/ConfirmEmailPage.tsx'
-import DashboardPage from './pages/DashboardPage.tsx'
-import LandingPage from './pages/LandingPage.tsx'
-import ResetPasswordPage from './pages/ResetPasswordPage.tsx'
-import { PANEL_PATH, returnPathFrom } from './returnPath.ts'
+import { useAuth } from './Services/authContext/AuthContext.ts'
+import RequireAuth from './components/RequireAuth/RequireAuth.tsx'
+import AuthPage from './pages/AuthPage/AuthPage.tsx'
+import ConfirmEmailPage from './pages/ConfirmEmailPage/ConfirmEmailPage.tsx'
+import DashboardPage from './pages/DashboardPage/DashboardPage.tsx'
+import LandingPage from './pages/LandingPage/LandingPage.tsx'
+import ResetPasswordPage from './pages/ResetPasswordPage/ResetPasswordPage.tsx'
+import { PANEL_PATH, returnPathFrom } from './shared/returnPath.ts'
 
 /** Whoever is already signed in has no use for the sign-in form: back to the page they were going to, or to the dashboard. */
-function PublicOnly({ children }: { children: ReactNode }) {
+const PublicOnly = ({ children }: { children: ReactNode }) => {
   const { isAuthenticated } = useAuth()
   const location = useLocation()
   return isAuthenticated ? <Navigate to={returnPathFrom(location.state)} replace /> : children
@@ -20,13 +20,13 @@ function PublicOnly({ children }: { children: ReactNode }) {
  * The root address shows the landing page to someone who has not signed in. Someone who has goes to the dashboard (/panel),
  * keeping the query string: old links to the dashboard (with ?mes=…) keep working.
  */
-function Home() {
+const Home = () => {
   const { isAuthenticated } = useAuth()
   const { search } = useLocation()
   return isAuthenticated ? <Navigate to={`${PANEL_PATH}${search}`} replace /> : <LandingPage />
 }
 
-export default function App() {
+const App = () => {
   return (
     <Routes>
       <Route path="/login" element={<PublicOnly><AuthPage /></PublicOnly>} />
@@ -39,3 +39,5 @@ export default function App() {
     </Routes>
   )
 }
+
+export default App

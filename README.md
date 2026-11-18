@@ -25,13 +25,17 @@ Proyecto de portfolio: backend en **.NET 10** con Clean Architecture y frontend 
 - Resumen mensual: ingresos, gastos y lo que te queda, cada uno comparado con el mes anterior ("▲ 25% vs. octubre"), con cinco gráficos a elegir (destino de los ingresos, gastos por categoría, ingresos por categoría, ranking de categorías e ingresos vs. gastos). Cada uno trae su tabla de detalle con los montos y porcentajes, y cada categoría conserva su color en todos. La elección queda en la URL.
 - **Presupuestos mensuales** por categoría de gasto, en pesos: una barra de avance por categoría en el resumen, con el estado también en palabras ("Cerca del límite" desde el 80%, "Superado por $ X" al pasarte). El monto se edita ahí mismo.
 - **Avisos por correo** (opcionales): un mail cuando una categoría llega al 80% del presupuesto y otro cuando lo supera, una sola vez por mes y nivel. Se prenden con una casilla en **Ajustes › Notificaciones** y se activan al confirmar el correo con un enlace.
-- Modo claro, oscuro o el del sistema, a elección del usuario.
+- Modo claro, oscuro o el del sistema, a elección del usuario (en la landing y el login, arriba a la derecha; dentro de la app, en Ajustes › Apariencia).
 - Página de inicio que explica qué hace la app, y un panel que entra completo en la pantalla: tres paneles lado a lado en pantallas grandes y pestañas en pantallas chicas.
 - Conversión USD → ARS con el dólar que elija el usuario: **oficial, blue o MEP**, con las cotizaciones de [dolarapi.com](https://dolarapi.com). La elección vale para los movimientos que se cargan de ahí en adelante: cada movimiento queda con el dólar y la cotización del día en que se guardó, y elegir otro después no lo cambia (los meses cerrados tampoco). Cada movimiento dice al lado con qué cotización se convirtió, y el formulario avisa con cuál se va a guardar. La consulta se cachea 15 minutos y se reintenta si el servicio falla; si no hay cotización, el movimiento se guarda igual y el resumen avisa cuál faltó.
 - **Confirmación del correo** al registrarse: llega un mail con un enlace y, mientras no se abra, un aviso en el encabezado (sin bloquear nada) permite reenviarlo o corregir el correo si había un error de tipeo.
 - **Recuperación de contraseña** por mail, con un enlace que dura 1 hora y sirve una sola vez. La pantalla responde igual aunque el correo no exista, y al restablecerla se cierran todas las sesiones que estaban abiertas.
 - **Verificación en dos pasos** (opcional): además de la contraseña, al entrar se pide el código de 6 dígitos de una app autenticadora (Google Authenticator, Authy, 1Password…). Se activa escaneando un QR, y trae 10 códigos de recuperación de un solo uso por si se pierde el celular. Tras 5 códigos incorrectos seguidos se bloquea 15 minutos, y restablecer la contraseña por mail no la saltea.
-- **Ajustes**: un botón flotante abre una ventana con la seguridad (la verificación en dos pasos) y las notificaciones (el estado del correo y los avisos de presupuesto).
+- **Ajustes**: el botón del encabezado (junto a "Salir") abre una ventana con la seguridad (la verificación en dos pasos), las notificaciones (el estado del correo y los avisos de presupuesto) y la apariencia (el tema claro, oscuro o el del sistema).
+- **Libro de movimientos como una hoja de cuaderno**: los movimientos se agrupan por día, con la fecha escrita en el margen (la línea roja) y un renglón por movimiento; la nota va debajo de la categoría. Cuando un mes todavía no tiene nada, cada parte lo dice con una nota escrita a mano y un botón que lleva directo al campo de monto.
+- **Detalles del cuaderno**: los presupuestos se dibujan como un trazo de resaltador sobre un renglón, las donas llevan en el centro la cifra que las resume, un cero no se pinta de rojo, y el movimiento que acabás de agregar se resalta un momento en el libro (si el sistema no pidió menos movimiento).
+- **Validaciones en el formulario**: antes de mandar nada, cada campo se revisa con las mismas reglas que aplica la API (email, contraseña nueva, montos, nota, nombre de categoría, códigos) y el error se escribe debajo del campo, con el mismo aviso en todos los formularios. Es para que la persona se entere al instante y no se manden pedidos inválidos: quien decide sigue siendo el servidor.
+- **Formularios cuidados**: ejemplos en los campos de ingreso y registro, ojo para ver la contraseña que se escribe, y calendario y selector de mes propios (con teclado, tema claro y oscuro, y años a un clic) en vez de los del navegador.
 - Cada usuario ve y modifica únicamente sus propios datos.
 - **Seguridad**: la API está cerrada por defecto (cada endpoint declara si es público y un test lo vigila), todo el acceso a la base es parametrizado (sin SQL armado a mano), la API manda cabeceras de seguridad, el panel vive en una ruta protegida (`/panel`) y el frontend lleva una política de contenido (CSP) que limita de dónde se carga todo. Detalle en [`gastos/README.md`](gastos/README.md#seguridad).
 
@@ -49,6 +53,7 @@ Proyecto de portfolio: backend en **.NET 10** con Clean Architecture y frontend 
 - React 19, TypeScript, Vite
 - Tailwind CSS v4, con identidad propia: "el cuaderno" (hoja cuadriculada con margen rojo y tinta de birome; el modo oscuro es un pizarrón verde). Tipografías Archivo, Martian Mono y Shantell Sans, autoalojadas
 - TanStack Query, React Router, Recharts (cargado bajo demanda)
+- [react-day-picker](https://daypicker.dev) para el calendario, con el estilo de la app (en lugar del selector nativo del navegador, que no se puede estilizar); el selector de mes, el campo de contraseña con ojo y la base de ambos selectores son propios
 - Vitest + Testing Library
 
 **Infraestructura**
@@ -75,13 +80,19 @@ Patrones aplicados: Repository y Generic Repository, Service Layer, DTO + Mapper
 El frontend, en `gastos/frontend/src/`:
 
 ```
-├── pages/               Inicio (pública), acceso y panel
-├── components/          Resumen, gráficos, libro de movimientos, formulario, categorías, tema, avisos
-├── chartData.ts         Lógica de los gráficos, pura y testeada
-├── useListFilters.ts    Filtros y paginación guardados en la URL
-├── api.ts               Cliente HTTP tipado
-└── index.css            Sistema de diseño: colores del tema, tipografías y piezas base
+├── pages/NombrePage/        Una carpeta por pantalla: inicio (pública), acceso y panel, con su test al lado
+├── components/Nombre/       Una carpeta por componente (Nombre.tsx + Nombre.test.tsx): resumen, gráficos, libro, formulario...
+├── Services/
+│   ├── api/                 Cliente HTTP tipado
+│   ├── authContext/         AuthContext.ts (contexto y useAuth) y AuthContextProvider.tsx
+│   └── toastContext/        ToastContext.ts (contexto y useToast) y ToastContextProvider.tsx
+├── shared/                  Lógica pura y testeada: gráficos, formatos, tema, filtros guardados en la URL
+│   └── Validations/         Las reglas de todos los formularios (las mismas que valida la API, con sus mismos mensajes)
+├── data/                    Contenido fijo (la hoja de ejemplo de la página de inicio)
+└── index.css                Sistema de diseño: colores del tema, tipografías y piezas base
 ```
+
+Convenciones de los componentes (las de la materia Programación 3): cada uno es una *arrow function* con `export default` al final; adentro van, en este orden, los estados, los hooks, los efectos, los *handlers* (`handleChangeX`, `handleSubmit`, `handleBack`...) y el `return`. Ningún evento lleva una función escrita en el JSX.
 
 ## 🔌 Endpoints principales
 
@@ -101,6 +112,7 @@ El frontend, en `gastos/frontend/src/`:
 | PUT | `/api/transaction/{id}` | Editar un movimiento |
 | DELETE | `/api/transaction/{id}` | Borrar un movimiento |
 | GET | `/api/report/monthly?year=&month=` | Resumen mensual en ARS, con los totales del mes anterior (`previous`) para compararlo y el avance de cada presupuesto (`budgets`) |
+| GET | `/api/report/evolution?from=&to=` | Evolución mes a mes en ARS (ingresos, gastos y saldo de cada mes de `AAAA-MM` a `AAAA-MM`, ambos incluidos, hasta 24 meses) y los totales del período. Los meses sin movimientos vienen en cero |
 | GET | `/api/settings` | Ajustes del usuario: con qué dólar (`Official`, `Blue` o `Mep`) se guardan sus movimientos nuevos |
 | PUT | `/api/settings` | Cambiar ese ajuste. Vale de ahí en adelante: los movimientos ya guardados conservan el suyo |
 | PUT | `/api/settings/budget-alerts` | Prender o apagar los avisos de presupuesto por correo (al prenderlos manda un mail de confirmación) |
@@ -132,7 +144,7 @@ Es un proyecto en evolución. Lo que tengo identificado para seguir:
 - [ ] Movimientos recurrentes (alquiler, suscripciones).
 - [x] Exportación a CSV.
 - [x] Comparación contra el mes anterior: cada cifra del resumen muestra cuánto subió o bajó.
-- [ ] Reportes por rango de meses (varios meses juntos, con su evolución).
+- [x] Evolución por rango de meses: ingresos, gastos y saldo mes a mes (atajos de 3, 6 y 12 meses, "este año" o un rango propio de hasta 24 meses), con gráfico, tabla, total y promedio mensual.
 - [x] Elegir el tipo de cotización del dólar (oficial, blue, MEP), por usuario: cada movimiento conserva el que estaba elegido al guardarlo y lo muestra a la vista.
 - [x] Paginación del listado de movimientos.
 - [x] Recuperación de contraseña por mail (enlace de 1 hora y de un solo uso). Al restablecerla se cierran todas las sesiones abiertas.

@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { saveSession } from './api.ts'
+import { saveSession } from './Services/api/api.ts'
 import App from './App.tsx'
 import { mockApi } from './test/fetchMock.ts'
 import { food, pageOf } from './test/fixtures.ts'
@@ -9,7 +9,7 @@ import { dateButton } from './test/datePicker.ts'
 import { renderWithProviders } from './test/render.tsx'
 
 // The chart library draws nothing useful in jsdom (it has no size)
-vi.mock('./components/ReportChart.tsx', () => ({ default: () => <div data-testid="chart" /> }))
+vi.mock('./components/ReportChart/ReportChart.tsx', () => ({ default: () => <div data-testid="chart" /> }))
 
 function signedIn() {
   saveSession({ token: 'jwt', expiresAtUtc: new Date(Date.now() + 3_600_000).toISOString() })

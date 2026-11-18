@@ -1,6 +1,6 @@
 import { screen, within } from '@testing-library/react'
 import type { UserEvent } from '@testing-library/user-event'
-import { monthName } from '../format.ts'
+import { monthName } from '../shared/format.ts'
 
 /** The name of the button of a DatePicker: it starts with the label of the field ("Fecha", "Desde"...), then comes the date. */
 const buttonName = (label: string) => new RegExp(`^${label}\\b`)
